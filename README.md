@@ -50,6 +50,18 @@ dots can be shared between Linux and Windows.
 
 Requires 64-bit Windows 10 (version 2004 or newer) or Windows 11.
 
+> **Tiling needs komorebi.** Caelestia is the bar, frame and drawers; the
+> tiling window manager is [komorebi](https://github.com/LGUG2Z/komorebi)
+> (developed and tested with 0.1.41), installed separately:
+>
+> ```powershell
+> winget install LGUG2Z.komorebi
+> ```
+>
+> Then turn on **Use komorebi for tiling** in Settings › Panels › Tiling. Caelestia
+> starts and themes it for you (see [Tiling with komorebi](#tiling-with-komorebi)).
+> Without komorebi the shell still works, using Windows virtual desktops as workspaces.
+
 **Installer (recommended)**: download `caelestia-win-<version>-setup.exe` from
 [Releases](https://github.com/Imsteven0/Hyperland-windows/releases) and run it.
 No admin rights are needed: it installs for your user in
