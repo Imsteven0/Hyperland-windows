@@ -1,7 +1,8 @@
 # Releasing
 
 1. Bump `version` in `Cargo.toml` (and run `cargo build` so `Cargo.lock` follows).
-2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`, or run the
+   **Release** workflow from the Actions tab with the version (it creates the tag).
 3. The **Release** workflow tests, builds and publishes:
    - `caelestia-win-<v>-setup.exe`: per-user installer (Inno Setup, `installer.iss`),
    - `caelestia-win-<v>-x64.zip`: portable build,

@@ -2,9 +2,19 @@ name: Release
 
 # Push a tag that matches Cargo.toml's version, e.g.:
 #   git tag v0.2.0 && git push origin v0.2.0
+# or run it from the Actions tab (Run workflow) with that version: the tag is
+# then created on the selected commit.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (must match Cargo.toml), e.g. 0.2.0"
+        required: true
+
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 
 permissions:
   contents: write
@@ -27,8 +37,6 @@ jobs:
 
       - name: Check the tag matches Cargo.toml
         shell: pwsh
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           $ver = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
           if ("v$ver" -ne $env:TAG) { throw "Tag $env:TAG doesn't match Cargo.toml version $ver" }
@@ -114,7 +122,9 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: Caelestia for Windows ${{ github.ref_name }}
+          name: Caelestia for Windows ${{ env.TAG }}
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           body_path: dist/notes.md
           files: |
             dist/caelestia-win-*-setup.exe
@@ -136,7 +146,6 @@ jobs:
         env:
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
           WINGET_ID: ${{ vars.WINGET_ID }}
-          TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
           $ver = $env:TAG.TrimStart('v')
