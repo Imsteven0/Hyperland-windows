@@ -887,8 +887,14 @@ msgstr "No se pudo comprobar si hay actualizaciones"
 msgid "Caelestia updates"
 msgstr "Actualizaciones de Caelestia"
 
-msgid "Download the installer from GitHub; your dots are kept"
-msgstr "Descarga el instalador desde GitHub; tus dots se conservan"
+msgid "Installs in the background and restarts Caelestia; your dots are kept"
+msgstr "Se instala en segundo plano y reinicia Caelestia; tus dots se conservan"
+
+msgid "Caelestia will close and open again in a moment"
+msgstr "Caelestia se cerrará y volverá a abrirse en un momento"
+
+msgid "Try again, or get the installer from GitHub"
+msgstr "Inténtalo de nuevo o descarga el instalador desde GitHub"
 
 msgid "Checked daily on GitHub Releases (general.checkUpdates)"
 msgstr "Se comprueba a diario en GitHub Releases (general.checkUpdates)"
@@ -896,5 +902,17 @@ msgstr "Se comprueba a diario en GitHub Releases (general.checkUpdates)"
 msgid "Check now"
 msgstr "Comprobar ahora"
 
-msgid "Get update"
+msgid "Update"
 msgstr "Actualizar"
+
+msgid "Retry"
+msgstr "Reintentar"
+
+msgid "Downloading {}… {}%"
+msgstr "Descargando {}… {}%"
+
+msgid "Installing {}…"
+msgstr "Instalando {}…"
+
+msgid "Couldn't install the update"
+msgstr "No se pudo instalar la actualización"

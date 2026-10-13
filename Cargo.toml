@@ -36,6 +36,8 @@ chrono = { version = "0.4", features = ["unstable-locales"] }
 nucleo-matcher = "0.3"
 emojis = "0.9"
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+# SHA-256 of downloaded updates (already used by rustls, no new crate).
+ring = "0.17"
 crossbeam-channel = "0.5"
 raw-window-handle = "0.6"
 rfd = { version = "0.17.2", default-features = false }

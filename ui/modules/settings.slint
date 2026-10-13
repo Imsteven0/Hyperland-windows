@@ -807,27 +807,47 @@ component AboutPage inherits VerticalLayout {
         }
     }
     SectionLabel { text: @tr("Updates"); }
-    SettingRow {
+    upd := SettingRow {
+        property <string> st: Shell.update-state;
         first: true;
         last: true;
-        title: Shell.update-state == "available" ? @tr("Update available: {}", Shell.update-version)
-            : Shell.update-state == "checking" ? @tr("Checking for updates…")
-            : Shell.update-state == "current" ? @tr("You have the latest version")
-            : Shell.update-state == "error" ? @tr("Couldn't check for updates")
+        title: self.st == "available" ? @tr("Update available: {}", Shell.update-version)
+            : self.st == "downloading" ? @tr("Downloading {}… {}%", Shell.update-version, Math.round(Shell.update-progress * 100))
+            : self.st == "installing" ? @tr("Installing {}…", Shell.update-version)
+            : self.st == "failed" ? @tr("Couldn't install the update")
+            : self.st == "checking" ? @tr("Checking for updates…")
+            : self.st == "current" ? @tr("You have the latest version")
+            : self.st == "error" ? @tr("Couldn't check for updates")
             : @tr("Caelestia updates");
-        subtitle: Shell.update-state == "available" ? @tr("Download the installer from GitHub; your dots are kept") : @tr("Checked daily on GitHub Releases (general.checkUpdates)");
+        subtitle: self.st == "available" || self.st == "downloading" ? @tr("Installs in the background and restarts Caelestia; your dots are kept")
+            : self.st == "installing" ? @tr("Caelestia will close and open again in a moment")
+            : self.st == "failed" ? @tr("Try again, or get the installer from GitHub")
+            : @tr("Checked daily on GitHub Releases (general.checkUpdates)");
         HorizontalLayout {
             spacing: Theme.spacing-small;
-            if Shell.update-state == "available": TextButton {
+            if upd.st == "downloading" || upd.st == "installing": LinearProgress {
+                y: (parent.height - self.height) / 2;
+                width: 140px;
+                value: Shell.update-progress;
+            }
+            if upd.st == "available" || upd.st == "failed": TextButton {
                 y: (parent.height - self.height) / 2;
                 height: 32px;
-                icon: "download";
-                text: @tr("Get update");
+                icon: upd.st == "failed" ? "refresh" : "download";
+                text: upd.st == "failed" ? @tr("Retry") : @tr("Update");
                 kind: ButtonKind.filled;
                 font-size: Theme.font-small;
+                clicked => { Shell.action("update-install", ""); }
+            }
+            if upd.st == "failed": IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: "open_in_new";
+                kind: ButtonKind.tonal;
+                size: 32px;
+                icon-size: Theme.font-larger;
                 clicked => { Shell.action("update-open", ""); }
             }
-            if Shell.update-state == "available": IconButton {
+            if upd.st == "available": IconButton {
                 y: (parent.height - self.height) / 2;
                 icon: "refresh";
                 kind: ButtonKind.tonal;
@@ -835,10 +855,10 @@ component AboutPage inherits VerticalLayout {
                 icon-size: Theme.font-larger;
                 clicked => { Shell.action("update-check", ""); }
             }
-            if Shell.update-state != "available": TextButton {
+            if upd.st != "available" && upd.st != "failed" && upd.st != "downloading" && upd.st != "installing": TextButton {
                 y: (parent.height - self.height) / 2;
                 height: 32px;
-                icon: Shell.update-state == "checking" ? "hourglass_top" : "refresh";
+                icon: upd.st == "checking" ? "hourglass_top" : "refresh";
                 text: @tr("Check now");
                 kind: ButtonKind.outlined;
                 font-size: Theme.font-small;

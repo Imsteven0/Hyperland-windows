@@ -325,6 +325,7 @@ impl Caelestia {
             "plugin-toggle" => self.toggle_plugin(arg),
             "plugins-reload" => self.load_plugins(),
             "update-check" => self.check_updates_now(),
+            "update-install" => self.install_update(),
             "update-open" => {
                 let target = self.st.borrow().update.as_ref().map(|r| r.installer.clone().unwrap_or_else(|| r.page.clone()));
                 system::open(&target.unwrap_or_else(|| format!("https://github.com/{}/releases", crate::services::updates::REPO)));
