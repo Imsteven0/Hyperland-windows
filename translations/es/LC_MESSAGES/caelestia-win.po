@@ -760,3 +760,111 @@ msgstr "Descargar"
 
 msgid "Cancel"
 msgstr "Cancelar"
+
+msgid "Active · a full-screen app is in front"
+msgstr "Activo · hay una app a pantalla completa"
+
+msgid "Active · always on"
+msgstr "Activo · siempre"
+
+msgid "Active · on battery"
+msgstr "Activo · con batería"
+
+msgid "Also download its wallpapers"
+msgstr "Descargar también sus fondos"
+
+msgid "Also when Windows' energy saver is on"
+msgstr "También con el ahorro de energía de Windows"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "Bell with the number of notifications; opens the notification center"
+msgstr "Campana con el número de notificaciones; abre el centro de notificaciones"
+
+msgid "Clipboard history"
+msgstr "Historial del portapapeles"
+
+msgid "Clipboard, emoji and calculator results are pasted into the previous window"
+msgstr "Lo elegido del portapapeles, emojis y calculadora se pega en la ventana anterior"
+
+msgid "Dots gallery"
+msgstr "Galería de dots"
+
+msgid "Drawers never open from the screen edges meanwhile"
+msgstr "Mientras tanto, los paneles no se abren desde los bordes"
+
+msgid "Each plugin runs a command or script: only add plugins you trust"
+msgstr "Cada plugin ejecuta un comando o script: añade solo plugins de confianza"
+
+msgid "Finds shell.json, scheme.json and wallpapers in a repository"
+msgstr "Busca shell.json, scheme.json y fondos en un repositorio"
+
+msgid "Folders with a plugin.json in the dots `plugins` directory"
+msgstr "Carpetas con un plugin.json en la carpeta `plugins` de los dots"
+
+msgid "Import from GitHub"
+msgstr "Importar desde GitHub"
+
+msgid "Notifications icon"
+msgstr "Icono de notificaciones"
+
+msgid "Paste after choosing"
+msgstr "Pegar al elegir"
+
+msgid "Pauses blur, animations and hover-to-open"
+msgstr "Pausa el desenfoque, las animaciones y la apertura al pasar el ratón"
+
+msgid "Performance mode"
+msgstr "Modo rendimiento"
+
+msgid "Preview"
+msgstr "Vista previa"
+
+msgid "Read the plugins folder again"
+msgstr "Vuelve a leer la carpeta de plugins"
+
+msgid "Recent"
+msgstr "Recientes"
+
+msgid "Reload plugins"
+msgstr "Recargar plugins"
+
+msgid "The active indicator stretches towards the new workspace"
+msgstr "El indicador activo se estira hacia el nuevo espacio"
+
+msgid "Type \";\" in the launcher · kept in memory only, password managers are skipped"
+msgstr "Escribe \";\" en el lanzador · solo en memoria, se ignoran los gestores de contraseñas"
+
+msgid "Undo import"
+msgstr "Deshacer importación"
+
+msgid "With full-screen games and videos"
+msgstr "Con juegos y vídeos a pantalla completa"
+
+msgid "Workspace switch animation"
+msgstr "Animación al cambiar de espacio"
+
+msgid "Your previous dots were saved before importing"
+msgstr "Tus dots anteriores se guardaron antes de importar"
+
+msgid "Allow in Windows settings"
+msgstr "Permitir en la configuración de Windows"
+
+msgid "Caelestia needs notification access to show them here"
+msgstr "Caelestia necesita acceso a las notificaciones para mostrarlas aquí"
+
+msgid "No notifications"
+msgstr "Sin notificaciones"
+
+msgid "Notifications"
+msgstr "Notificaciones"
+
+msgid "Show less"
+msgstr "Ver menos"
+
+msgid "This version of Windows doesn't share notifications with other apps"
+msgstr "Esta versión de Windows no comparte las notificaciones con otras apps"
+
+msgid "{} more"
+msgstr "{} más"

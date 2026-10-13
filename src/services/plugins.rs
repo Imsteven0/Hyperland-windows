@@ -186,28 +186,28 @@ pub struct Output {
 /// the first line is the text and the rest the tooltip.
 pub fn parse_output(stdout: &str) -> Output {
     let trimmed = stdout.trim();
-    if trimmed.starts_with('{') {
-        if let Ok(Value::Object(o)) = serde_json::from_str::<Value>(trimmed) {
-            let s = |k: &str| o.get(k).and_then(Value::as_str).map(str::to_owned);
-            let class = match o.get("class") {
-                Some(Value::Array(a)) => a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" "),
-                Some(Value::String(c)) => c.clone(),
-                _ => String::new(),
-            };
-            let tone = class.split_whitespace().fold(Tone::Normal, |t, c| match c {
-                "critical" | "urgent" | "error" => Tone::Critical,
-                "warning" if t != Tone::Critical => Tone::Warning,
-                "good" | "ok" | "success" if t == Tone::Normal => Tone::Good,
-                _ => t,
-            });
-            return Output {
-                text: clip(&s("text").unwrap_or_default(), 200),
-                tooltip: clip(&s("tooltip").unwrap_or_default(), 2000),
-                icon: s("icon").filter(|i| !i.is_empty()),
-                tone,
-                percentage: o.get("percentage").and_then(Value::as_f64).map(|p| (p / 100.0).clamp(0.0, 1.0) as f32),
-            };
-        }
+    if trimmed.starts_with('{')
+        && let Ok(Value::Object(o)) = serde_json::from_str::<Value>(trimmed)
+    {
+        let s = |k: &str| o.get(k).and_then(Value::as_str).map(str::to_owned);
+        let class = match o.get("class") {
+            Some(Value::Array(a)) => a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" "),
+            Some(Value::String(c)) => c.clone(),
+            _ => String::new(),
+        };
+        let tone = class.split_whitespace().fold(Tone::Normal, |t, c| match c {
+            "critical" | "urgent" | "error" => Tone::Critical,
+            "warning" if t != Tone::Critical => Tone::Warning,
+            "good" | "ok" | "success" if t == Tone::Normal => Tone::Good,
+            _ => t,
+        });
+        return Output {
+            text: clip(&s("text").unwrap_or_default(), 200),
+            tooltip: clip(&s("tooltip").unwrap_or_default(), 2000),
+            icon: s("icon").filter(|i| !i.is_empty()),
+            tone,
+            percentage: o.get("percentage").and_then(Value::as_f64).map(|p| (p / 100.0).clamp(0.0, 1.0) as f32),
+        };
     }
     let mut lines = trimmed.lines();
     let text = lines.next().unwrap_or_default().trim();

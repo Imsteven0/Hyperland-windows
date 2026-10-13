@@ -165,10 +165,8 @@ impl Notifications {
                         match read_all(&listener) {
                             Ok((list, infos)) => {
                                 for (app_id, info) in infos {
-                                    if icons_done.insert(app_id.clone()) {
-                                        if let Some(buf) = logo(&info) {
-                                            on(NotifEvent::Icon(app_id, buf));
-                                        }
+                                    if icons_done.insert(app_id.clone()) && let Some(buf) = logo(&info) {
+                                        on(NotifEvent::Icon(app_id, buf));
                                     }
                                 }
                                 if last.as_ref() != Some(&list) {
