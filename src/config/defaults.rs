@@ -4,8 +4,12 @@
 
 use serde_json::{Value, json};
 
+/// Lets editors (VS Code...) validate and autocomplete shell.json.
+pub const SCHEMA_URL: &str = "https://raw.githubusercontent.com/Imsteven0/Hyperland-windows/main/schema/shell.schema.json";
+
 pub fn default_config() -> Value {
     json!({
+        "$schema": SCHEMA_URL,
         "appearance": {
             "anim": { "durations": { "scale": 1.0 } },
             "font": {

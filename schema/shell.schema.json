@@ -1,0 +1,707 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Imsteven0/Hyperland-windows/main/schema/shell.schema.json",
+  "title": "Caelestia for Windows shell.json",
+  "description": "Caelestia dots (~/.config/caelestia/shell.json). Unknown keys are kept, so dots can be shared with the Linux shell.",
+  "type": "object",
+  "definitions": {
+    "accelerator": {
+      "type": "string",
+      "pattern": "^\\s*[A-Za-z0-9]+(\\s*\\+\\s*[A-Za-z0-9]+)*\\s*$",
+      "examples": [
+        "Ctrl+Alt+KeyD",
+        "Alt+Space",
+        "Super",
+        "Super+Shift+F5"
+      ],
+      "description": "Modifiers (Ctrl, Alt, Shift, Super) and one key joined by +, e.g. \"Ctrl+Alt+KeyD\"; \"Super\" alone taps the Windows key."
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "default": "x"
+    },
+    "appearance": {
+      "type": "object",
+      "properties": {
+        "anim": {
+          "type": "object",
+          "properties": {
+            "durations": {
+              "type": "object",
+              "properties": {
+                "scale": {
+                  "type": "number",
+                  "description": "Multiplier for every animation duration (0 = instant).",
+                  "minimum": 0,
+                  "maximum": 5,
+                  "default": 1.0
+                }
+              }
+            }
+          }
+        },
+        "font": {
+          "type": "object",
+          "properties": {
+            "family": {
+              "type": "object",
+              "properties": {
+                "clock": {
+                  "type": "string",
+                  "description": "Font of the big clock.",
+                  "default": "Rubik"
+                },
+                "material": {
+                  "type": "string",
+                  "description": "Icon font (Material Symbols).",
+                  "default": "Material Symbols Rounded"
+                },
+                "mono": {
+                  "type": "string",
+                  "description": "Monospace font.",
+                  "default": "Cascadia Mono"
+                },
+                "sans": {
+                  "type": "string",
+                  "description": "Main UI font.",
+                  "default": "Rubik"
+                }
+              }
+            },
+            "size": {
+              "type": "object",
+              "properties": {
+                "scale": {
+                  "type": "number",
+                  "description": "Multiplier for every font size.",
+                  "minimum": 0.5,
+                  "maximum": 3,
+                  "default": 1.0
+                }
+              }
+            }
+          }
+        },
+        "padding": {
+          "type": "object",
+          "properties": {
+            "scale": {
+              "type": "number",
+              "description": "Multiplier for paddings.",
+              "minimum": 0,
+              "maximum": 3,
+              "default": 1.0
+            }
+          }
+        },
+        "rounding": {
+          "type": "object",
+          "properties": {
+            "scale": {
+              "type": "number",
+              "description": "Multiplier for corner radii.",
+              "minimum": 0,
+              "maximum": 3,
+              "default": 1.0
+            }
+          }
+        },
+        "spacing": {
+          "type": "object",
+          "properties": {
+            "scale": {
+              "type": "number",
+              "description": "Multiplier for spacings.",
+              "minimum": 0,
+              "maximum": 3,
+              "default": 1.0
+            }
+          }
+        },
+        "transparency": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Translucent panels.",
+              "default": false
+            },
+            "base": {
+              "type": "number",
+              "description": "Opacity of panel backgrounds (0-1).",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.85
+            },
+            "layers": {
+              "type": "number",
+              "description": "Opacity of cards on top of panels (0-1).",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.4
+            }
+          }
+        }
+      },
+      "description": "Look and feel shared with Caelestia (same names and meaning)."
+    },
+    "general": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string",
+          "description": "UI language.",
+          "enum": [
+            "auto",
+            "en",
+            "es"
+          ],
+          "default": "auto"
+        },
+        "apps": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Commands for apps the shell opens (each an argv array)."
+        }
+      }
+    },
+    "background": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Let the shell manage the desktop wallpaper.",
+          "default": true
+        }
+      }
+    },
+    "bar": {
+      "type": "object",
+      "properties": {
+        "persistent": {
+          "type": "boolean",
+          "description": "Reserve screen space so maximised windows stay clear of the bar.",
+          "default": true
+        },
+        "showOnHover": {
+          "type": "boolean",
+          "description": "Caelestia option (the Windows bar is always shown).",
+          "default": true
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "enum": [
+                  "logo",
+                  "workspaces",
+                  "spacer",
+                  "activeWindow",
+                  "tray",
+                  "clock",
+                  "statusIcons",
+                  "power"
+                ]
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          },
+          "description": "Bar items in order; an item is shown when listed and enabled."
+        },
+        "sizes": {
+          "type": "object",
+          "properties": {
+            "innerWidth": {
+              "type": "integer",
+              "description": "Bar width in px (without padding).",
+              "minimum": 24,
+              "maximum": 120,
+              "default": 40
+            }
+          }
+        },
+        "status": {
+          "type": "object",
+          "properties": {
+            "showAudio": {
+              "type": "boolean",
+              "description": "Volume icon.",
+              "default": true
+            },
+            "showBattery": {
+              "type": "boolean",
+              "description": "Battery icon.",
+              "default": true
+            },
+            "showBluetooth": {
+              "type": "boolean",
+              "description": "Bluetooth icon.",
+              "default": true
+            },
+            "showNetwork": {
+              "type": "boolean",
+              "description": "Network icon.",
+              "default": true
+            },
+            "showMicrophone": {
+              "type": "boolean",
+              "description": "Microphone icon when muted.",
+              "default": true
+            },
+            "showNotifications": {
+              "type": "boolean",
+              "description": "Bell with the notification count (opens the notification center).",
+              "default": true
+            }
+          }
+        },
+        "workspaces": {
+          "type": "object",
+          "properties": {
+            "shown": {
+              "type": "integer",
+              "description": "Workspaces per group in the bar.",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 5
+            },
+            "activeIndicator": {
+              "type": "boolean",
+              "description": "Highlight the active workspace.",
+              "default": true
+            },
+            "activeTrail": {
+              "type": "boolean",
+              "description": "Stretchy active indicator when switching workspaces.",
+              "default": true
+            },
+            "showWindows": {
+              "type": "boolean",
+              "description": "Caelestia option; app icons are always shown on Windows.",
+              "default": false
+            }
+          }
+        },
+        "excludedScreens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Monitors without a bar, by device name (\"DISPLAY2\")."
+        }
+      }
+    },
+    "border": {
+      "type": "object",
+      "properties": {
+        "rounding": {
+          "type": "integer",
+          "description": "Inner corner radius of the screen frame (px).",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 25
+        },
+        "thickness": {
+          "type": "integer",
+          "description": "Screen frame thickness (px).",
+          "minimum": 0,
+          "maximum": 60,
+          "default": 10
+        }
+      }
+    },
+    "dashboard": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the dashboard drawer.",
+          "default": true
+        },
+        "showOnHover": {
+          "type": "boolean",
+          "description": "Open the dashboard from the top edge.",
+          "default": true
+        },
+        "mediaUpdateInterval": {
+          "type": "integer",
+          "description": "Media refresh interval (ms).",
+          "minimum": 250,
+          "maximum": 5000,
+          "default": 1000
+        },
+        "resourceUpdateInterval": {
+          "type": "integer",
+          "description": "CPU/RAM/disk refresh interval (ms).",
+          "minimum": 250,
+          "default": 1000
+        }
+      }
+    },
+    "launcher": {
+      "type": "object",
+      "properties": {
+        "actionPrefix": {
+          "type": "string",
+          "description": "Prefix for launcher actions.",
+          "default": ">"
+        },
+        "calcPrefix": {
+          "type": "string",
+          "description": "Prefix for the calculator (empty disables it).",
+          "default": "="
+        },
+        "emojiPrefix": {
+          "type": "string",
+          "description": "Prefix for the emoji picker (empty disables it).",
+          "default": ":"
+        },
+        "clipboardPrefix": {
+          "type": "string",
+          "description": "Prefix for the clipboard history (empty disables it).",
+          "default": ";"
+        },
+        "clipboardHistory": {
+          "type": "boolean",
+          "description": "Record copied text (memory only; password managers are skipped).",
+          "default": true
+        },
+        "clipboardMaxItems": {
+          "type": "integer",
+          "description": "Entries kept in the clipboard history.",
+          "minimum": 5,
+          "maximum": 500,
+          "default": 50
+        },
+        "clipboardPaste": {
+          "type": "boolean",
+          "description": "Paste the chosen clipboard/emoji/calculator result into the previous window.",
+          "default": false
+        },
+        "maxShown": {
+          "type": "integer",
+          "description": "Visible launcher results.",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 7
+        },
+        "maxWallpapers": {
+          "type": "integer",
+          "description": "Caelestia option.",
+          "default": 9
+        },
+        "enableDangerousActions": {
+          "type": "boolean",
+          "description": "Show sleep/logout/reboot/shutdown actions.",
+          "default": false
+        },
+        "hiddenApps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "App names never shown in the launcher.",
+          "default": []
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "properties": {
+        "wallpaperDir": {
+          "type": "string",
+          "description": "Wallpaper folder (~ is your home).",
+          "default": "~/Pictures/Wallpapers"
+        },
+        "wallpaperRepo": {
+          "type": "string",
+          "description": "Last GitHub repository wallpapers were downloaded from.",
+          "default": ""
+        },
+        "recordingsDir": {
+          "type": "string",
+          "description": "Screen recordings folder.",
+          "default": "~/Videos/Recordings"
+        },
+        "screenshotsDir": {
+          "type": "string",
+          "description": "Screenshots folder.",
+          "default": "~/Pictures/Screenshots"
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "properties": {
+        "audioIncrement": {
+          "type": "number",
+          "description": "Volume step for the scroll wheel (0-1).",
+          "minimum": 0.01,
+          "maximum": 1,
+          "default": 0.1
+        },
+        "maxVolume": {
+          "type": "number",
+          "description": "Upper volume limit (0-1).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1.0
+        },
+        "weatherLocation": {
+          "type": "string",
+          "description": "\"lat,lon\" for the weather; empty uses your IP location.",
+          "default": ""
+        },
+        "useFahrenheit": {
+          "type": "boolean",
+          "description": "Fahrenheit for the weather.",
+          "default": false
+        },
+        "useTwelveHourClock": {
+          "type": "boolean",
+          "description": "12-hour clock.",
+          "default": true
+        },
+        "smartScheme": {
+          "type": "boolean",
+          "description": "Pick light/dark from the wallpaper's brightness.",
+          "default": true
+        },
+        "weatherLocationName": {
+          "type": "string",
+          "description": "Display name of services.weatherLocation."
+        }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Plugin folder names that are not run.",
+          "default": []
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the session drawer.",
+          "default": true
+        }
+      }
+    },
+    "utilities": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the utilities drawer.",
+          "default": true
+        },
+        "showOnHover": {
+          "type": "boolean",
+          "description": "Open utilities from the bottom-right corner.",
+          "default": true
+        }
+      }
+    },
+    "windows": {
+      "type": "object",
+      "properties": {
+        "autostart": {
+          "type": "boolean",
+          "description": "Start Caelestia when you sign in.",
+          "default": true
+        },
+        "blur": {
+          "type": "boolean",
+          "description": "Blur behind translucent panels.",
+          "default": true
+        },
+        "performance": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "description": "Reduced effects: automatic, always or never.",
+              "enum": [
+                "auto",
+                "on",
+                "off"
+              ],
+              "default": "auto"
+            },
+            "onBattery": {
+              "type": "boolean",
+              "description": "Reduce effects on battery or energy saver.",
+              "default": true
+            },
+            "onFullscreen": {
+              "type": "boolean",
+              "description": "Reduce effects (and disable edge hover) with full-screen games and videos.",
+              "default": true
+            }
+          }
+        },
+        "komorebi": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Use komorebi for tiling; the bar shows its workspaces.",
+              "default": false
+            },
+            "autostart": {
+              "type": "boolean",
+              "description": "Start komorebi with the shell.",
+              "default": true
+            },
+            "borders": {
+              "type": "boolean",
+              "description": "Window borders in the scheme's colours.",
+              "default": true
+            },
+            "borderWidth": {
+              "type": "integer",
+              "description": "Border width (px).",
+              "minimum": 0,
+              "maximum": 20,
+              "default": 3
+            },
+            "borderOffset": {
+              "type": "integer",
+              "description": "Border offset (px).",
+              "minimum": -10,
+              "maximum": 20,
+              "default": 0
+            },
+            "workspacePadding": {
+              "type": "integer",
+              "description": "Gap between windows and the frame (px).",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 10
+            },
+            "containerPadding": {
+              "type": "integer",
+              "description": "Gap between windows (px).",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 10
+            },
+            "animations": {
+              "type": "boolean",
+              "description": "komorebi movement animations.",
+              "default": true
+            },
+            "layeredApps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Executables komorebi must tile although they use layered windows (\"*\" = all).",
+              "default": [
+                "*",
+                "claude.exe"
+              ]
+            },
+            "binds": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^\\s*[A-Za-z0-9]+(\\s*\\+\\s*[A-Za-z0-9]+)*\\s*$",
+                "examples": [
+                  "Ctrl+Alt+KeyD",
+                  "Alt+Space",
+                  "Super",
+                  "Super+Shift+F5"
+                ],
+                "description": "Modifiers (Ctrl, Alt, Shift, Super) and one key joined by +, e.g. \"Ctrl+Alt+KeyD\"; \"Super\" alone taps the Windows key."
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Hotkeys for komorebi commands, e.g. { \"Alt+H\": \"focus left\" } (replaces the defaults)."
+            }
+          }
+        },
+        "shortcuts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^\\s*[A-Za-z0-9]+(\\s*\\+\\s*[A-Za-z0-9]+)*\\s*$",
+            "examples": [
+              "Ctrl+Alt+KeyD",
+              "Alt+Space",
+              "Super",
+              "Super+Shift+F5"
+            ],
+            "description": "Modifiers (Ctrl, Alt, Shift, Super) and one key joined by +, e.g. \"Ctrl+Alt+KeyD\"; \"Super\" alone taps the Windows key."
+          },
+          "properties": {
+            "launcher": {
+              "$ref": "#/definitions/accelerator",
+              "default": "Alt+Space"
+            },
+            "dashboard": {
+              "$ref": "#/definitions/accelerator",
+              "default": "Ctrl+Alt+KeyD"
+            },
+            "utilities": {
+              "$ref": "#/definitions/accelerator",
+              "default": "Ctrl+Alt+KeyU"
+            },
+            "session": {
+              "$ref": "#/definitions/accelerator",
+              "default": "Ctrl+Alt+KeyP"
+            },
+            "sidebar": {
+              "$ref": "#/definitions/accelerator",
+              "default": "Ctrl+Alt+KeyN"
+            },
+            "settings": {
+              "$ref": "#/definitions/accelerator",
+              "default": "Ctrl+Alt+KeyS"
+            },
+            "clipboard": {
+              "$ref": "#/definitions/accelerator",
+              "description": "Launcher in clipboard mode (no default)."
+            },
+            "emoji": {
+              "$ref": "#/definitions/accelerator",
+              "description": "Launcher in emoji mode (no default)."
+            },
+            "calc": {
+              "$ref": "#/definitions/accelerator",
+              "description": "Launcher in calculator mode (no default)."
+            }
+          },
+          "description": "Global shortcuts: target -> accelerator (\"Ctrl+Alt+KeyD\", \"Super\")."
+        }
+      },
+      "description": "Windows-only options."
+    }
+  }
+}

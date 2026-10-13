@@ -377,6 +377,44 @@ mod tests {
         assert!(unknown.is_empty(), "UI writes keys missing from the defaults: {unknown:?}");
     }
 
+    /// schema/shell.schema.json (editor autocompletion for the dots) must
+    /// describe every default key, with a matching type.
+    #[test]
+    fn schema_covers_every_default() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("schema").join("shell.schema.json");
+        let schema: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        fn walk(v: &Value, s: &Value, at: &str, missing: &mut Vec<String>) {
+            let ty = s["type"].as_str().unwrap_or("");
+            let ok = match v {
+                Value::Bool(_) => ty == "boolean",
+                Value::Number(n) => ty == "number" || (ty == "integer" && n.is_i64()),
+                Value::String(_) => ty == "string" || s.get("$ref").is_some(),
+                Value::Array(_) => ty == "array",
+                Value::Object(_) => ty == "object",
+                Value::Null => true,
+            };
+            if !ok {
+                missing.push(format!("{at}: wrong type {ty:?}"));
+            }
+            if let Value::Object(o) = v {
+                for (k, child) in o {
+                    let path = if at.is_empty() { k.clone() } else { format!("{at}.{k}") };
+                    match s["properties"].get(k) {
+                        Some(cs) if cs.get("description").is_some() || k == "$schema" || cs.get("$ref").is_some() => walk(child, cs, &path, missing),
+                        Some(cs) if child.is_object() => walk(child, cs, &path, missing),
+                        Some(_) => missing.push(format!("{path}: no description")),
+                        None if s.get("additionalProperties").is_some_and(Value::is_object) => {}
+                        None => missing.push(format!("{path}: not in the schema")),
+                    }
+                }
+            }
+        }
+        let mut missing = Vec::new();
+        walk(&default_config(), &schema, "", &mut missing);
+        assert!(missing.is_empty(), "{missing:#?}");
+        assert_eq!(schema["$id"], defaults::SCHEMA_URL);
+    }
+
     #[test]
     fn expands_home() {
         let home = dirs::home_dir().unwrap();
