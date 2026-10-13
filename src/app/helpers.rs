@@ -126,20 +126,26 @@ pub(super) fn size_label(bytes: u64) -> String {
 }
 
 pub(super) fn list_wallpapers(cfg: &Config) -> Vec<PathBuf> {
-    let root = wallpaper_dir(cfg);
-    let max = 10_000;
+    list_images(&wallpaper_dir(cfg), 10_000)
+}
+
+/// Images below `root` (sorted), at most `max`. Uses the type the directory
+/// listing already returned instead of one extra stat per entry.
+pub(super) fn list_images(root: &Path, max: usize) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    let mut stack = vec![root];
-    while let Some(dir) = stack.pop() {
+    let mut stack = vec![root.to_path_buf()];
+    'walk: while let Some(dir) = stack.pop() {
         let Ok(rd) = std::fs::read_dir(&dir) else { continue };
         for e in rd.flatten() {
+            let Ok(kind) = e.file_type() else { continue };
             let p = e.path();
-            if p.is_dir() {
+            // Symlinks/junctions to folders still count (they need the stat).
+            if kind.is_dir() || (kind.is_symlink() && p.is_dir()) {
                 stack.push(p);
             } else if matches!(p.extension().and_then(|x| x.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("jpg" | "jpeg" | "png" | "webp" | "bmp")) {
                 out.push(p);
                 if out.len() >= max {
-                    break;
+                    break 'walk;
                 }
             }
         }
@@ -252,6 +258,23 @@ mod tests {
         // size_label follows the global UI language: accept either separator.
         assert_eq!(size_label(12 * 1_048_576).replace(',', "."), "12 MB");
         assert_eq!(size_label(1536 * 1_048_576).replace(',', "."), "1.5 GB");
+    }
+
+    #[test]
+    fn lists_images_recursively_with_a_cap() {
+        let root = std::env::temp_dir().join(format!("caelestia-walls-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("dark").join("deep")).unwrap();
+        for f in ["a.jpg", "b.PNG", "notes.txt", "c.jpg.part", "dark/d.webp", "dark/deep/e.jpeg"] {
+            std::fs::write(root.join(f), b"x").unwrap();
+        }
+        let names = |v: Vec<PathBuf>| v.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect::<Vec<_>>();
+        let mut all = names(list_images(&root, 100));
+        all.sort();
+        assert_eq!(all, ["a.jpg", "b.PNG", "d.webp", "e.jpeg"]);
+        assert_eq!(list_images(&root, 2).len(), 2, "the cap stops the whole walk");
+        assert!(list_images(&root.join("missing"), 10).is_empty());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
