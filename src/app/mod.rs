@@ -379,7 +379,7 @@ impl Caelestia {
             settings_thumb_timer: Timer::default(),
             blur_panes: RefCell::new((0..7).map(|_| None).collect()),
             blur_timer: Timer::default(),
-            ghosts: RefCell::default(),
+            ghosts: RefCell::new(crate::platform::ghosts::GhostGuard::with_state(paths.state_dir.join("click-through.json"))),
             icons: IconCache::new(40, |key, buf| {
                 post(move |app| {
                     app.icons.store(key, buf);

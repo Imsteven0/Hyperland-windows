@@ -36,6 +36,13 @@ fn main() -> Result<()> {
 
     let paths = config::Paths::resolve();
     init_logging(&paths);
+    // A crash must not leave app windows click-through (see platform::ghosts).
+    let ghosts_file = paths.state_dir.join("click-through.json");
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        platform::ghosts::restore_from_disk(&ghosts_file);
+        default_hook(info);
+    }));
 
     // One shell per session: the second instance would fight over the AppBars.
     let mutex_name = windows::core::HSTRING::from(format!("Local\\CaelestiaWindowsShell{}", ipc::instance()));
