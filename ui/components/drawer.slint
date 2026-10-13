@@ -1,0 +1,108 @@
+// A panel that grows out of the screen border with concave "flares" on both
+// sides, exactly like Caelestia's drawers (dashboard, launcher, utilities...).
+// The hosting window is sized by Rust to `full-width` x `full-height`.
+import { Theme } from "../theme.slint";
+import { Flare, FlareCorner } from "base.slint";
+
+export enum Edge { top, bottom, left, right, bottom-right }
+
+export component DrawerFrame inherits Rectangle {
+    in property <Edge> edge: Edge.top;
+    in property <bool> open;
+    in property <length> panel-width: 400px;
+    in property <length> panel-height: 300px;
+    in property <length> flare: Theme.t.border-rounding;
+    out property <float> progress: root.open ? 1 : 0;
+    // Live panel geometry (window-relative), read by Rust to keep the blur
+    // pane under the panel while it animates.
+    out property <length> panel-x: panel.x;
+    out property <length> panel-y: panel.y;
+    out property <length> panel-w: panel.width;
+    out property <length> panel-h: panel.height;
+    out property <length> full-width: root.edge == Edge.right || root.edge == Edge.left ? root.panel-width : root.edge == Edge.bottom-right ? root.panel-width + root.flare : root.panel-width + root.flare * 2;
+    out property <length> full-height: root.edge == Edge.right || root.edge == Edge.left ? root.panel-height + root.flare * 2 : root.edge == Edge.bottom-right ? root.panel-height + root.flare : root.panel-height;
+
+    animate progress {
+        duration: root.open ? Theme.anim-normal : Theme.anim-small + 50ms;
+        easing: root.open ? cubic-bezier(0.05, 0.7, 0.1, 1) : cubic-bezier(0.3, 0, 0.8, 0.15);
+    }
+
+    property <bool> vertical: root.edge != Edge.right && root.edge != Edge.left;
+    // Visible extent of the panel along its growth axis.
+    property <length> extent: (root.vertical ? root.panel-height : root.panel-width) * root.progress;
+    property <length> f: min(root.flare, root.extent);
+    property <color> fill-col: Theme.base;
+    property <length> cx0: (root.width - root.panel-width) / 2;
+
+    // ---- flares ----
+    if root.edge == Edge.top: Flare {
+        x: root.cx0 - self.width; y: 0; width: root.f; height: root.f;
+        corner: FlareCorner.top-right; color: root.fill-col;
+    }
+    if root.edge == Edge.top: Flare {
+        x: root.cx0 + root.panel-width; y: 0; width: root.f; height: root.f;
+        corner: FlareCorner.top-left; color: root.fill-col;
+    }
+    if root.edge == Edge.bottom: Flare {
+        x: root.cx0 - self.width; y: root.height - self.height; width: root.f; height: root.f;
+        corner: FlareCorner.bottom-right; color: root.fill-col;
+    }
+    if root.edge == Edge.bottom: Flare {
+        x: root.cx0 + root.panel-width; y: root.height - self.height; width: root.f; height: root.f;
+        corner: FlareCorner.bottom-left; color: root.fill-col;
+    }
+    if root.edge == Edge.right: Flare {
+        x: root.width - self.width; y: root.flare - self.height; width: root.f; height: root.f;
+        corner: FlareCorner.bottom-right; color: root.fill-col;
+    }
+    if root.edge == Edge.right: Flare {
+        x: root.width - self.width; y: root.flare + root.panel-height; width: root.f; height: root.f;
+        corner: FlareCorner.top-right; color: root.fill-col;
+    }
+    if root.edge == Edge.left: Flare {
+        x: 0; y: (root.height - root.panel-height) / 2 - self.height; width: root.f; height: root.f;
+        corner: FlareCorner.bottom-left; color: root.fill-col;
+    }
+    if root.edge == Edge.left: Flare {
+        x: 0; y: (root.height + root.panel-height) / 2; width: root.f; height: root.f;
+        corner: FlareCorner.top-left; color: root.fill-col;
+    }
+    if root.edge == Edge.bottom-right: Flare {
+        x: root.flare - self.width; y: root.height - self.height; width: root.f; height: root.f;
+        corner: FlareCorner.bottom-right; color: root.fill-col;
+    }
+    if root.edge == Edge.bottom-right: Flare {
+        x: root.width - self.width; y: root.flare + (root.panel-height - root.extent) - self.height; width: root.f; height: root.f;
+        corner: FlareCorner.bottom-right; color: root.fill-col;
+    }
+
+    // ---- panel ----
+    panel := Rectangle {
+        x: root.edge == Edge.right ? root.width - root.extent : root.edge == Edge.left ? 0
+            : root.edge == Edge.bottom-right ? root.flare : root.cx0;
+        y: root.edge == Edge.top ? 0
+            : root.edge == Edge.left ? (root.height - root.panel-height) / 2
+            : root.edge == Edge.right ? root.flare
+            : root.edge == Edge.bottom-right ? root.flare + root.panel-height - root.extent
+            : root.height - root.extent;
+        width: root.vertical ? root.panel-width : root.extent;
+        height: root.vertical ? root.extent : root.panel-height;
+        clip: true;
+        background: root.fill-col;
+        animate background { duration: Theme.anim-normal; }
+        border-top-left-radius: root.edge == Edge.top || root.edge == Edge.left ? 0 : root.f;
+        border-top-right-radius: root.edge == Edge.top || root.edge == Edge.right || root.edge == Edge.bottom-right ? 0 : root.f;
+        border-bottom-left-radius: root.edge == Edge.bottom || root.edge == Edge.left || root.edge == Edge.bottom-right ? 0 : root.f;
+        border-bottom-right-radius: root.edge == Edge.bottom || root.edge == Edge.right || root.edge == Edge.bottom-right ? 0 : root.f;
+
+        // Content keeps its full size and slides in with the panel edge.
+        content := Rectangle {
+            x: root.edge == Edge.left ? root.extent - root.panel-width : 0;
+            y: root.edge == Edge.top ? root.extent - root.panel-height : 0;
+            width: root.panel-width;
+            height: root.panel-height;
+            opacity: Math.clamp(root.progress * 1.6 - 0.3, 0, 1);
+            @children
+        }
+    }
+}

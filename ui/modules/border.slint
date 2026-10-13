@@ -1,0 +1,31 @@
+// Full-screen, click-through overlay that paints Caelestia's screen frame:
+// the left strip under the bar plus a thin border with rounded inner corners.
+import { Theme } from "../theme.slint";
+
+export component BorderWindow inherits Window {
+    title: "caelestia-border";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    property <length> t: Theme.t.border-thickness;
+    property <length> r: Theme.t.border-rounding;
+    property <length> left: Theme.t.bar-width;
+    // A rectangle much larger than the screen whose (uniform) border forms the
+    // frame; its outer rounded corners land off-screen, the inner ones give the
+    // concave screen corners. One primitive, fully antialiased, GPU friendly.
+    property <length> k: (root.t + root.r) * 2 + root.left;
+    property <length> bw: root.k + root.t;
+
+    Rectangle {
+        x: root.left - root.bw;
+        y: -root.k;
+        width: root.width - root.t - root.left + root.bw * 2;
+        height: root.height + root.k * 2;
+        border-width: root.bw;
+        border-radius: root.bw + root.r;
+        border-color: Theme.base;
+        background: transparent;
+        animate border-color { duration: Theme.anim-normal; }
+    }
+}

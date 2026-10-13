@@ -1,0 +1,214 @@
+// Bar popouts (Caelestia modules/bar/popouts): a panel that grows out of the
+// bar next to the hovered item — audio, network, bluetooth, battery,
+// calendar and active window. Rust positions it vertically on the item.
+import { Theme } from "../theme.slint";
+import { Shell } from "../state.slint";
+import { StyledText, MaterialIcon, IconButton, ButtonKind, StyledSwitch, StyledSlider, TextButton, Separator } from "../components/base.slint";
+import { DrawerFrame, Edge } from "../components/drawer.slint";
+import { Calendar } from "../components/calendar.slint";
+import { AudioDeviceList, BtDeviceList } from "../components/devices.slint";
+
+component Header inherits HorizontalLayout {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> subtitle;
+    spacing: Theme.spacing-normal;
+    Rectangle {
+        width: 36px;
+        height: 36px;
+        border-radius: Theme.rounding-full;
+        background: Theme.c.secondary-container;
+        MaterialIcon { text: root.icon; color: Theme.c.on-secondary-container; }
+    }
+    VerticalLayout {
+        alignment: center;
+        horizontal-stretch: 1;
+        StyledText { text: root.title; font-size: Theme.font-larger; overflow: elide; }
+        if root.subtitle != "": StyledText { text: root.subtitle; font-size: Theme.font-small; color: Theme.c.on-surface-variant; overflow: elide; }
+    }
+    @children
+}
+
+component LevelRow inherits HorizontalLayout {
+    in property <string> icon;
+    in property <bool> muted;
+    in property <float> value;
+    callback toggle-mute();
+    callback changed(float);
+    spacing: Theme.spacing-small;
+    IconButton {
+        y: (parent.height - self.height) / 2;
+        icon: root.icon;
+        kind: ButtonKind.tonal;
+        checkable: true;
+        toggled: !root.muted;
+        size: 34px;
+        clicked => { root.toggle-mute(); }
+    }
+    StyledSlider {
+        horizontal-stretch: 1;
+        y: (parent.height - self.height) / 2;
+        value: root.value;
+        changed(v) => { root.changed(v); }
+    }
+    StyledText {
+        width: 36px;
+        text: root.muted ? @tr("Off") : Math.round(root.value * 100) + "%";
+        font-size: Theme.font-small;
+        font-family: Theme.t.font-mono;
+        color: Theme.c.on-surface-variant;
+        horizontal-alignment: right;
+    }
+}
+
+component SectionTitle inherits StyledText {
+    font-size: Theme.font-small;
+    font-weight: 600;
+    color: Theme.c.on-surface-variant;
+}
+
+component AudioPopout inherits VerticalLayout {
+    spacing: Theme.spacing-small;
+    SectionTitle { text: @tr("Output"); }
+    LevelRow {
+        icon: Shell.status.muted ? "volume_off" : Shell.status.volume > 0.5 ? "volume_up" : "volume_down";
+        muted: Shell.status.muted;
+        value: Shell.status.volume;
+        toggle-mute => { Shell.set-config("@mute", Shell.status.muted ? "false" : "true"); }
+        changed(v) => { Shell.action("volume-set", v); }
+    }
+    AudioDeviceList { devices: Shell.audio-outputs; icon: "headphones"; }
+    Separator { }
+    SectionTitle { text: @tr("Microphone"); }
+    LevelRow {
+        icon: Shell.status.mic-muted ? "mic_off" : "mic";
+        muted: Shell.status.mic-muted;
+        value: Shell.status.mic-volume;
+        toggle-mute => { Shell.set-config("@mic-mute", Shell.status.mic-muted ? "false" : "true"); }
+        changed(v) => { Shell.action("mic-volume-set", v); }
+    }
+    AudioDeviceList { devices: Shell.audio-inputs; icon: "mic"; }
+    TextButton { icon: "settings"; text: @tr("Sound settings"); font-size: Theme.font-small; clicked => { Shell.action("open-uri", "ms-settings:sound"); } }
+}
+
+component NetworkPopout inherits VerticalLayout {
+    spacing: Theme.spacing-normal;
+    Header {
+        icon: !Shell.status.online ? "wifi_off" : Shell.status.wifi ? "wifi" : "lan";
+        title: Shell.status.network-name != "" ? Shell.status.network-name : @tr("Not connected");
+        subtitle: Shell.status.online ? (Shell.status.wifi ? @tr("Wi-Fi · Internet access") : @tr("Ethernet · Internet access")) : @tr("No internet");
+    }
+    Separator { }
+    HorizontalLayout {
+        spacing: Theme.spacing-small;
+        MaterialIcon { text: "wifi"; color: Theme.c.on-surface-variant; }
+        StyledText { text: @tr("Wi-Fi"); horizontal-stretch: 1; }
+        StyledSwitch {
+            checked: Shell.status.wifi-available;
+            toggled(v) => { Shell.set-config("@wifi", v ? "true" : "false"); }
+        }
+    }
+    HorizontalLayout {
+        spacing: Theme.spacing-small;
+        TextButton { icon: "tune"; text: @tr("Settings"); font-size: Theme.font-small; clicked => { Shell.action("settings-page", "1"); } }
+        TextButton { icon: "open_in_new"; text: @tr("Windows"); kind: ButtonKind.outlined; font-size: Theme.font-small; clicked => { Shell.action("open-uri", "ms-settings:network-wifi"); } }
+    }
+}
+
+component BluetoothPopout inherits VerticalLayout {
+    spacing: Theme.spacing-normal;
+    Header {
+        icon: Shell.status.bluetooth ? "bluetooth" : "bluetooth_disabled";
+        title: @tr("Bluetooth");
+        subtitle: !Shell.status.bluetooth-available ? @tr("No adapter") : !Shell.status.bluetooth ? @tr("Off")
+            : Shell.bt-devices.length == 0 ? @tr("On") : @tr("{} paired", Shell.bt-devices.length);
+        StyledSwitch {
+            y: (parent.height - self.height) / 2;
+            enabled: Shell.status.bluetooth-available;
+            checked: Shell.status.bluetooth;
+            toggled(v) => { Shell.set-config("@bluetooth", v ? "true" : "false"); }
+        }
+    }
+    BtDeviceList { }
+    HorizontalLayout {
+        spacing: Theme.spacing-small;
+        TextButton { horizontal-stretch: 1; icon: "add"; text: @tr("Pair device"); font-size: Theme.font-small; clicked => { Shell.action("open-uri", "ms-settings:bluetooth"); } }
+        IconButton { y: (parent.height - self.height) / 2; icon: "refresh"; kind: ButtonKind.tonal; size: 34px; clicked => { Shell.action("bt-refresh", ""); } }
+    }
+}
+
+component BatteryPopout inherits VerticalLayout {
+    spacing: Theme.spacing-normal;
+    Header {
+        icon: !Shell.status.battery-present ? "power" : Shell.status.charging ? "battery_charging_full" : "battery_full";
+        title: Shell.status.battery-present ? Math.round(Shell.status.battery * 100) + "%" : @tr("AC power");
+        subtitle: !Shell.status.battery-present ? @tr("No battery detected") : Shell.status.charging ? @tr("Charging") : @tr("On battery");
+    }
+    TextButton { icon: "bolt"; text: @tr("Power & battery"); font-size: Theme.font-small; clicked => { Shell.action("open-uri", "ms-settings:powersleep"); } }
+}
+
+component CalendarPopout inherits VerticalLayout {
+    spacing: Theme.spacing-small;
+    StyledText { text: Shell.date-long; font-size: Theme.font-larger; color: Theme.c.primary; horizontal-alignment: center; }
+    HorizontalLayout { alignment: center; Calendar { } }
+}
+
+component WindowPopout inherits VerticalLayout {
+    spacing: Theme.spacing-small;
+    Header { icon: "desktop_windows"; title: Shell.active-app != "" ? Shell.active-app : @tr("Desktop"); }
+    StyledText { text: Shell.active-title; wrap: word-wrap; color: Theme.c.on-surface-variant; font-size: Theme.font-small; }
+}
+
+export component PopoutWindow inherits Window {
+    title: "caelestia-popout";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in-out property <bool> open;
+    in property <string> kind: "audio";
+
+    out property <length> blur-x: frame.panel-x;
+    out property <length> blur-y: frame.panel-y;
+    out property <length> blur-w: frame.panel-w;
+    out property <length> blur-h: frame.panel-h;
+
+    public pure function panel-width-for(k: string) -> length {
+        k == "calendar" ? 270px : k == "activewindow" ? 320px : k == "audio" || k == "bluetooth" ? 330px : k == "network" ? 300px : 280px
+    }
+    // Lists make audio/bluetooth grow with the number of devices.
+    public pure function panel-height-for(k: string) -> length {
+        k == "audio" ? 268px + (Shell.audio-outputs.length + Shell.audio-inputs.length) * 36px
+            : k == "bluetooth" ? 150px + Math.max(1, Shell.bt-devices.length) * 50px
+            : k == "network" ? 172px : k == "battery" ? 110px : k == "calendar" ? 270px : 120px
+    }
+    // The panel morphs between items like Caelestia's popouts.
+    property <length> pw: root.panel-width-for(root.kind);
+    property <length> ph: root.panel-height-for(root.kind);
+    animate pw, ph { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+
+    // Fixed native window (largest panel + flares); Rust centres it on the item.
+    out property <length> want-width: 330px;
+    out property <length> want-height: 560px + Theme.t.border-rounding * 2;
+    width: root.want-width;
+    height: root.want-height;
+
+    frame := DrawerFrame {
+        edge: Edge.left;
+        open: root.open;
+        panel-width: root.pw;
+        panel-height: root.ph;
+
+        VerticalLayout {
+            padding: Theme.padding-large;
+            // Cross-fade content on switch.
+            opacity: 1;
+            if root.kind == "audio": AudioPopout { }
+            if root.kind == "network": NetworkPopout { }
+            if root.kind == "bluetooth": BluetoothPopout { }
+            if root.kind == "battery": BatteryPopout { }
+            if root.kind == "calendar": CalendarPopout { }
+            if root.kind == "activewindow": WindowPopout { }
+        }
+    }
+}

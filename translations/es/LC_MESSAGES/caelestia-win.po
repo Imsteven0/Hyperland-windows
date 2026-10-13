@@ -1,0 +1,762 @@
+# Spanish translation of the Caelestia shell for Windows.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Mo"
+msgstr "Lu"
+
+msgid "Tu"
+msgstr "Ma"
+
+msgid "We"
+msgstr "Mi"
+
+msgid "Th"
+msgstr "Ju"
+
+msgid "Fr"
+msgstr "Vi"
+
+msgid "Sa"
+msgstr "Sá"
+
+msgid "Su"
+msgstr "Do"
+
+msgid "Disconnecting…"
+msgstr "Desconectando…"
+
+msgid "Connecting…"
+msgstr "Conectando…"
+
+msgid "Connected"
+msgstr "Conectado"
+
+msgid "Not connected"
+msgstr "No conectado"
+
+msgid "No paired devices"
+msgstr "No hay dispositivos emparejados"
+
+msgid "Bluetooth is off"
+msgstr "El Bluetooth está apagado"
+
+msgid "Automatic"
+msgstr "Automática"
+
+msgid "Located by your internet connection (IP)"
+msgstr "Según tu conexión a internet (IP)"
+
+msgid "Detecting…"
+msgstr "Detectando…"
+
+msgid "Detect my location"
+msgstr "Detectar mi ubicación"
+
+msgid "Automatic (IP)"
+msgstr "Automática (IP)"
+
+msgid "Search a city, e.g. \"Madrid\" or \"San Rafael, Alajuela\""
+msgstr "Busca una ciudad, p. ej. \"Madrid\" o \"San Rafael, Alajuela\""
+
+msgid "Searching…"
+msgstr "Buscando…"
+
+msgid "No places found — try another spelling or add the country."
+msgstr "No se encontraron lugares — prueba otra escritura o añade el país."
+
+msgid "Couldn't reach the location service. Check your connection."
+msgstr "No se pudo contactar el servicio de ubicación. Revisa tu conexión."
+
+msgid "Loading weather…"
+msgstr "Cargando el clima…"
+
+msgid "Weather unavailable"
+msgstr "Clima no disponible"
+
+msgid "Open-Meteo"
+msgstr "Open-Meteo"
+
+msgid "Click to set your location"
+msgstr "Haz clic para elegir tu ubicación"
+
+msgid "No media"
+msgstr "Sin reproducción"
+
+msgid "Play something to see it here"
+msgstr "Reproduce algo para verlo aquí"
+
+msgid "Nothing playing"
+msgstr "No se está reproduciendo nada"
+
+msgid "Start playback in any app (Spotify, a browser, Media Player…)"
+msgstr "Reproduce en cualquier app (Spotify, un navegador, Reproductor multimedia…)"
+
+msgid "N/A"
+msgstr "N/D"
+
+msgid "Install LibreHardwareMonitor"
+msgstr "Instalar LibreHardwareMonitor"
+
+msgid "Start LibreHardwareMonitor"
+msgstr "Iniciar LibreHardwareMonitor"
+
+msgid "Usage"
+msgstr "Uso"
+
+msgid "Used"
+msgstr "Usado"
+
+msgid "Network"
+msgstr "Red"
+
+msgid "Download"
+msgstr "Descarga"
+
+msgid "Upload"
+msgstr "Subida"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "GPU"
+msgstr "GPU"
+
+msgid "Storage"
+msgstr "Almacenamiento"
+
+msgid "Memory"
+msgstr "Memoria"
+
+msgid "Pick your city or detect your location."
+msgstr "Elige tu ciudad o detecta tu ubicación."
+
+msgid "Current location"
+msgstr "Ubicación actual"
+
+msgid "Feels like"
+msgstr "Sensación térmica"
+
+msgid "Humidity"
+msgstr "Humedad"
+
+msgid "Wind"
+msgstr "Viento"
+
+msgid "Precipitation"
+msgstr "Precipitación"
+
+msgid "Sunrise"
+msgstr "Amanecer"
+
+msgid "Sunset"
+msgstr "Atardecer"
+
+msgid "Dashboard"
+msgstr "Panel"
+
+msgid "Media"
+msgstr "Multimedia"
+
+msgid "Performance"
+msgstr "Rendimiento"
+
+msgid "Weather"
+msgstr "Clima"
+
+msgid "Arrows preview · Enter applies · Esc cancels"
+msgstr "Flechas: vista previa · Enter: aplicar · Esc: cancelar"
+
+msgid "Search wallpapers"
+msgstr "Buscar fondos"
+
+msgid "Type \"{}\" for commands"
+msgstr "Escribe \"{}\" para ver comandos"
+
+msgid "Off"
+msgstr "Apagado"
+
+msgid "Output"
+msgstr "Salida"
+
+msgid "Microphone"
+msgstr "Micrófono"
+
+msgid "Sound settings"
+msgstr "Configuración de sonido"
+
+msgid "Wi-Fi · Internet access"
+msgstr "Wi-Fi · Con internet"
+
+msgid "Ethernet · Internet access"
+msgstr "Ethernet · Con internet"
+
+msgid "No internet"
+msgstr "Sin internet"
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "Settings"
+msgstr "Ajustes"
+
+msgid "Windows"
+msgstr "Windows"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "No adapter"
+msgstr "Sin adaptador"
+
+msgid "On"
+msgstr "Encendido"
+
+msgid "{} paired"
+msgstr "{} emparejados"
+
+msgid "Pair device"
+msgstr "Emparejar dispositivo"
+
+msgid "AC power"
+msgstr "Corriente alterna"
+
+msgid "No battery detected"
+msgstr "No se detectó batería"
+
+msgid "Charging"
+msgstr "Cargando"
+
+msgid "On battery"
+msgstr "Con batería"
+
+msgid "Power & battery"
+msgstr "Energía y batería"
+
+msgid "Desktop"
+msgstr "Escritorio"
+
+msgid "Dark"
+msgstr "Oscuro"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Wallpapers"
+msgstr "Fondos"
+
+msgid "Colours"
+msgstr "Colores"
+
+msgid "Opacity"
+msgstr "Opacidad"
+
+msgid "{0} wallpapers · {1}"
+msgstr "{0} fondos · {1}"
+
+msgid "Random"
+msgstr "Aleatorio"
+
+msgid "Folder"
+msgstr "Carpeta"
+
+msgid "No images found. Pick a folder with wallpapers (jpg, png, webp)."
+msgstr "No hay imágenes. Elige una carpeta con fondos (jpg, png, webp)."
+
+msgid "Display wallpaper"
+msgstr "Mostrar fondo"
+
+msgid "Let the shell manage the desktop wallpaper"
+msgstr "Que el shell gestione el fondo del escritorio"
+
+msgid "Smart scheme"
+msgstr "Esquema inteligente"
+
+msgid "Pick light/dark from the wallpaper's brightness"
+msgstr "Elige claro/oscuro según el brillo del fondo"
+
+msgid "Dark theme"
+msgstr "Tema oscuro"
+
+msgid "Colour scheme"
+msgstr "Esquema de color"
+
+msgid "Dynamic variant"
+msgstr "Variante dinámica"
+
+msgid "Palette"
+msgstr "Paleta"
+
+msgid "Shape & type"
+msgstr "Forma y tipografía"
+
+msgid "Rounding scale"
+msgstr "Escala de redondeo"
+
+msgid "Font size scale"
+msgstr "Escala de fuente"
+
+msgid "Animation speed"
+msgstr "Velocidad de animación"
+
+msgid "Duration scale (lower is faster)"
+msgstr "Escala de duración (menor es más rápido)"
+
+msgid "Opacity theme"
+msgstr "Tema de opacidad"
+
+msgid "Solid"
+msgstr "Sólido"
+
+msgid "Subtle"
+msgstr "Sutil"
+
+msgid "Translucent"
+msgstr "Translúcido"
+
+msgid "Glass"
+msgstr "Cristal"
+
+msgid "Clear"
+msgstr "Transparente"
+
+msgid "Transparency"
+msgstr "Transparencia"
+
+msgid "Base {0}, layers {1}"
+msgstr "Base {0}, capas {1}"
+
+msgid "Base opacity"
+msgstr "Opacidad base"
+
+msgid "Panels, bar and frame"
+msgstr "Paneles, barra y marco"
+
+msgid "Layer opacity"
+msgstr "Opacidad de capas"
+
+msgid "Cards and controls on top"
+msgstr "Tarjetas y controles superiores"
+
+msgid "Blur behind"
+msgstr "Desenfoque de fondo"
+
+msgid "Acrylic/blur under translucent surfaces"
+msgstr "Acrílico/desenfoque bajo superficies translúcidas"
+
+msgid "Connected to {}"
+msgstr "Conectado a {}"
+
+msgid "Internet"
+msgstr "Internet"
+
+msgid "Online"
+msgstr "En línea"
+
+msgid "Offline"
+msgstr "Sin conexión"
+
+msgid "Wi-Fi networks"
+msgstr "Redes Wi-Fi"
+
+msgid "Open"
+msgstr "Abrir"
+
+msgid "Ethernet & VPN"
+msgstr "Ethernet y VPN"
+
+msgid "No adapter found"
+msgstr "No se encontró adaptador"
+
+msgid "Paired devices"
+msgstr "Dispositivos emparejados"
+
+msgid "Pair a new device"
+msgstr "Emparejar un dispositivo nuevo"
+
+msgid "Opens Windows' pairing flow (PIN / confirmation)"
+msgstr "Abre el emparejamiento de Windows (PIN / confirmación)"
+
+msgid "Pair"
+msgstr "Emparejar"
+
+msgid "Printers & scanners"
+msgstr "Impresoras y escáneres"
+
+msgid "Output volume"
+msgstr "Volumen de salida"
+
+msgid "Muted"
+msgstr "Silenciado"
+
+msgid "Mute output"
+msgstr "Silenciar salida"
+
+msgid "Output device"
+msgstr "Dispositivo de salida"
+
+msgid "Input volume"
+msgstr "Volumen de entrada"
+
+msgid "Mute microphone"
+msgstr "Silenciar micrófono"
+
+msgid "Input device"
+msgstr "Dispositivo de entrada"
+
+msgid "Advanced sound settings"
+msgstr "Configuración de sonido avanzada"
+
+msgid "Windows Update"
+msgstr "Windows Update"
+
+msgid "Check for system updates"
+msgstr "Buscar actualizaciones del sistema"
+
+msgid "Check"
+msgstr "Buscar"
+
+msgid "Upgrade packages"
+msgstr "Actualizar paquetes"
+
+msgid "Runs `winget upgrade --all` in a terminal"
+msgstr "Ejecuta `winget upgrade --all` en una terminal"
+
+msgid "Run"
+msgstr "Ejecutar"
+
+msgid "Installed plugins"
+msgstr "Plugins instalados"
+
+msgid "Drop plugin folders into the dots `plugins` directory"
+msgstr "Coloca las carpetas de plugins en el directorio `plugins` de tus dots"
+
+msgid "Plugins folder"
+msgstr "Carpeta de plugins"
+
+msgid "Tiling · komorebi"
+msgstr "Mosaico · komorebi"
+
+msgid "Running · tiling managed by komorebi, UI by Caelestia"
+msgstr "En ejecución · mosaico por komorebi, interfaz por Caelestia"
+
+msgid "Paused (Alt+P to resume)"
+msgstr "En pausa (Alt+P para reanudar)"
+
+msgid "Installed, not running"
+msgstr "Instalado, sin ejecutar"
+
+msgid "Not installed"
+msgstr "No instalado"
+
+msgid "Install komorebi"
+msgstr "Instalar komorebi"
+
+msgid "winget install LGUG2Z.komorebi (free for personal use)"
+msgstr "winget install LGUG2Z.komorebi (gratis para uso personal)"
+
+msgid "Install"
+msgstr "Instalar"
+
+msgid "Use komorebi for tiling"
+msgstr "Usar komorebi para el mosaico"
+
+msgid "Workspaces in the bar follow komorebi; its bar and whkd are never started"
+msgstr "Los espacios de la barra siguen a komorebi; su barra y whkd nunca se inician"
+
+msgid "Start komorebi with the shell"
+msgstr "Iniciar komorebi con el shell"
+
+msgid "Themed window borders"
+msgstr "Bordes de ventana con el tema"
+
+msgid "komorebi borders use the colour scheme"
+msgstr "Los bordes de komorebi usan el esquema de color"
+
+msgid "Border width"
+msgstr "Grosor del borde"
+
+msgid "Gaps between windows"
+msgstr "Separación entre ventanas"
+
+msgid "Gaps to the frame"
+msgstr "Separación con el marco"
+
+msgid "Window animations"
+msgstr "Animaciones de ventanas"
+
+msgid "komorebi movement animations, timed by the shell's animation speed"
+msgstr "Animaciones de movimiento de komorebi, con la velocidad de animación del shell"
+
+msgid "Alt+H/J/K/L focus · Alt+Shift+H/J/K/L move · Alt+1..8 workspaces"
+msgstr "Alt+H/J/K/L foco · Alt+Mayús+H/J/K/L mover · Alt+1..8 espacios"
+
+msgid "Stop"
+msgstr "Detener"
+
+msgid "Start"
+msgstr "Iniciar"
+
+msgid "Config"
+msgstr "Configuración"
+
+msgid "Bar"
+msgstr "Barra"
+
+msgid "Reserve screen space"
+msgstr "Reservar espacio en pantalla"
+
+msgid "Maximised windows stay clear of the bar"
+msgstr "Las ventanas maximizadas no tapan la barra"
+
+msgid "Workspaces"
+msgstr "Espacios de trabajo"
+
+msgid "Workspaces shown"
+msgstr "Espacios mostrados"
+
+msgid "Active window"
+msgstr "Ventana activa"
+
+msgid "Clock"
+msgstr "Reloj"
+
+msgid "Status icons"
+msgstr "Iconos de estado"
+
+msgid "Power button"
+msgstr "Botón de apagado"
+
+msgid "Border"
+msgstr "Marco"
+
+msgid "Thickness"
+msgstr "Grosor"
+
+msgid "Rounding"
+msgstr "Redondeo"
+
+msgid "Dashboard & launcher"
+msgstr "Panel y lanzador"
+
+msgid "Open dashboard on hover"
+msgstr "Abrir el panel al pasar el cursor"
+
+msgid "Hover the top edge of the screen"
+msgstr "Pasa el cursor por el borde superior de la pantalla"
+
+msgid "Launcher results"
+msgstr "Resultados del lanzador"
+
+msgid "Open launcher with the Windows key"
+msgstr "Abrir el lanzador con la tecla Windows"
+
+msgid "Like Caelestia's Super. Off: Alt+Space"
+msgstr "Como Super en Caelestia. Desactivado: Alt+Espacio"
+
+msgid "Weather location"
+msgstr "Ubicación del clima"
+
+msgid "Units & format"
+msgstr "Unidades y formato"
+
+msgid "Use Fahrenheit"
+msgstr "Usar Fahrenheit"
+
+msgid "12-hour clock"
+msgstr "Reloj de 12 horas"
+
+msgid "UI language"
+msgstr "Idioma de la interfaz"
+
+msgid "Region"
+msgstr "Región"
+
+msgid "Change"
+msgstr "Cambiar"
+
+msgid "Imperial units"
+msgstr "Unidades imperiales"
+
+msgid "Fahrenheit for weather"
+msgstr "Fahrenheit para el clima"
+
+msgid "Caelestia"
+msgstr "Caelestia"
+
+msgid "System"
+msgstr "Sistema"
+
+msgid "Software"
+msgstr "Software"
+
+msgid "Dots"
+msgstr "Dots"
+
+msgid "Config file"
+msgstr "Archivo de configuración"
+
+msgid "Open config folder"
+msgstr "Abrir carpeta de configuración"
+
+msgid "Reload configuration"
+msgstr "Recargar configuración"
+
+msgid "Reload"
+msgstr "Recargar"
+
+msgid "Export dots"
+msgstr "Exportar dots"
+
+msgid "shell.json + scheme.json as a shareable folder"
+msgstr "shell.json + scheme.json en una carpeta para compartir"
+
+msgid "Export"
+msgstr "Exportar"
+
+msgid "Import dots"
+msgstr "Importar dots"
+
+msgid "Apply someone else's shell.json"
+msgstr "Aplica el shell.json de otra persona"
+
+msgid "Import"
+msgstr "Importar"
+
+msgid "Caelestia Settings"
+msgstr "Ajustes de Caelestia"
+
+msgid "Wallpaper & style"
+msgstr "Fondo y estilo"
+
+msgid "Wallpaper, fonts, colours"
+msgstr "Fondo, fuentes, colores"
+
+msgid "Wi-Fi, ethernet"
+msgstr "Wi-Fi, ethernet"
+
+msgid "Connected devices"
+msgstr "Dispositivos conectados"
+
+msgid "Bluetooth, pairing"
+msgstr "Bluetooth, emparejamiento"
+
+msgid "Audio"
+msgstr "Audio"
+
+msgid "App volumes, sound devices"
+msgstr "Volúmenes, dispositivos de sonido"
+
+msgid "Updates"
+msgstr "Actualizaciones"
+
+msgid "System updates"
+msgstr "Actualizaciones del sistema"
+
+msgid "Plugins"
+msgstr "Plugins"
+
+msgid "Manage plugins"
+msgstr "Gestionar plugins"
+
+msgid "Panels"
+msgstr "Paneles"
+
+msgid "Dashboard, taskbar, launcher, sidebar"
+msgstr "Panel, barra, lanzador, mosaico"
+
+msgid "Services"
+msgstr "Servicios"
+
+msgid "Weather location, units, clock"
+msgstr "Ubicación del clima, unidades, reloj"
+
+msgid "Language & region"
+msgstr "Idioma y región"
+
+msgid "UI language, weather location, display units"
+msgstr "Idioma, ubicación del clima, unidades"
+
+msgid "About"
+msgstr "Acerca de"
+
+msgid "System information, credits"
+msgstr "Información del sistema, créditos"
+
+msgid "Search settings"
+msgstr "Buscar ajustes"
+
+msgid "Keep Awake"
+msgstr "Mantener activo"
+
+msgid "Preventing sleep"
+msgstr "Evitando la suspensión"
+
+msgid "Normal power management"
+msgstr "Gestión de energía normal"
+
+msgid "Screenshot"
+msgstr "Captura"
+
+msgid "Ready"
+msgstr "Listo"
+
+msgid "Full"
+msgstr "Completa"
+
+msgid "Screen Rec..."
+msgstr "Grabación..."
+
+msgid "Record"
+msgstr "Grabar"
+
+msgid "Recordings"
+msgstr "Grabaciones"
+
+msgid "No recordings yet"
+msgstr "Aún no hay grabaciones"
+
+msgid "Quick Toggles"
+msgstr "Accesos rápidos"
+
+msgid "Startup"
+msgstr "Inicio"
+
+msgid "Start with Windows"
+msgstr "Iniciar con Windows"
+
+msgid "Open Caelestia when you sign in"
+msgstr "Abre Caelestia al iniciar sesión"
+
+msgid "Download from GitHub"
+msgstr "Descargar de GitHub"
+
+msgid "Images from a repository, saved in your wallpaper folder"
+msgstr "Imágenes de un repositorio, guardadas en tu carpeta de fondos"
+
+msgid "Show more ({0} left)"
+msgstr "Mostrar más (quedan {0})"
+
+msgid "Credits"
+msgstr "Créditos"
+
+msgid "Created by Steven Araya Gonzalez"
+msgstr "Creado por Steven Araya Gonzalez"
+
+msgid "Based on Caelestia"
+msgstr "Basado en Caelestia"
+
+msgid "The original Hyprland shell by the caelestia-dots project"
+msgstr "El shell original para Hyprland del proyecto caelestia-dots"
+
+msgid "Fetch"
+msgstr "Descargar"
+
+msgid "Cancel"
+msgstr "Cancelar"

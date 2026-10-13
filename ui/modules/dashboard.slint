@@ -1,0 +1,835 @@
+// Top drawer (Caelestia modules/dashboard) with Dashboard / Media /
+// Performance / Weather tabs. Each tab has its own natural size and the panel
+// morphs between them (the native window stays put, sized for the largest).
+import { Theme } from "../theme.slint";
+import { Shell } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, CircularProgress, LinearProgress, Card, StyledSlider } from "../components/base.slint";
+import { DrawerFrame, Edge } from "../components/drawer.slint";
+import { Calendar } from "../components/calendar.slint";
+
+// ======================================================================
+// shared bits
+// ======================================================================
+
+component Cookie inherits Rectangle {
+    in property <float> value;
+    in property <length> size: 64px;
+    width: root.size;
+    height: root.size;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        fill: Theme.c.secondary-container;
+        commands: Shell.cookie-path;
+        animate fill { duration: Theme.anim-normal; }
+    }
+    StyledText {
+        text: Math.round(root.value * 100) + "%";
+        font-family: Theme.t.font-mono;
+        font-size: Theme.font-large;
+        font-weight: 600;
+        color: Theme.c.on-secondary-container;
+        horizontal-alignment: center;
+    }
+}
+
+component Tab inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+    StateLayer {
+        border-radius: Theme.rounding-small;
+        tint: root.active ? Theme.c.primary : Theme.c.on-surface;
+        clicked => { root.clicked(); }
+    }
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px;
+        HorizontalLayout {
+            alignment: center;
+            MaterialIcon {
+                text: root.icon;
+                fill: root.active;
+                font-size: Theme.font-larger;
+                color: root.active ? Theme.c.primary : Theme.c.on-surface-variant;
+            }
+        }
+        StyledText {
+            text: root.label;
+            font-size: Theme.font-small;
+            horizontal-alignment: center;
+            color: root.active ? Theme.c.primary : Theme.c.on-surface-variant;
+        }
+    }
+}
+
+// Album art: rounded image or a tinted placeholder.
+component Cover inherits Rectangle {
+    in property <length> radius: Theme.rounding-normal;
+    border-radius: root.radius;
+    background: Theme.layer(Theme.c.surface-container-highest, 2);
+    clip: true;
+    if Shell.media.has-cover: Image {
+        width: 100%;
+        height: 100%;
+        source: Shell.media.cover;
+        image-fit: cover;
+    }
+    if !Shell.media.has-cover: MaterialIcon {
+        text: Shell.media.available ? "music_note" : "music_off";
+        font-size: min(root.width, root.height) * 0.38;
+        color: Theme.c.on-surface-variant;
+    }
+}
+
+component MediaControls inherits HorizontalLayout {
+    in property <length> size: 40px;
+    alignment: center;
+    spacing: Theme.spacing-small;
+    IconButton {
+        icon: "skip_previous";
+        size: root.size;
+        disabled: !Shell.media.available;
+        clicked => { Shell.action("media", "previous"); }
+    }
+    IconButton {
+        icon: Shell.media.playing ? "pause" : "play_arrow";
+        kind: ButtonKind.filled;
+        checkable: true;
+        toggled: Shell.media.playing;
+        size: root.size * 1.2;
+        icon-size: Theme.font-large * 1.2;
+        disabled: !Shell.media.available;
+        clicked => { Shell.action("media", "toggle"); }
+    }
+    IconButton {
+        icon: "skip_next";
+        size: root.size;
+        disabled: !Shell.media.available;
+        clicked => { Shell.action("media", "next"); }
+    }
+}
+
+// Seekable position bar with elapsed / total time.
+component Timeline inherits VerticalLayout {
+    spacing: 2px;
+    seek := StyledSlider {
+        height: 26px;
+        value: Shell.media.length > 0 ? Shell.media.position / Shell.media.length : 0;
+        released(v) => { Shell.action("media-seek", v); }
+    }
+    HorizontalLayout {
+        StyledText { text: Shell.media.position-text; font-size: Theme.font-small; font-family: Theme.t.font-mono; color: Theme.c.on-surface-variant; }
+        Rectangle { horizontal-stretch: 1; }
+        StyledText { text: Shell.media.length-text; font-size: Theme.font-small; font-family: Theme.t.font-mono; color: Theme.c.on-surface-variant; }
+    }
+}
+
+component InfoLine inherits HorizontalLayout {
+    in property <string> icon;
+    in property <string> text;
+    in property <color> tint: Theme.c.primary;
+    spacing: Theme.spacing-small;
+    MaterialIcon { text: root.icon; font-size: Theme.font-normal; color: root.tint; }
+    StyledText { text: root.text; font-size: Theme.font-smaller; overflow: elide; horizontal-stretch: 1; }
+}
+
+// ======================================================================
+// Dashboard tab — layout of Caelestia's Dash.qml:
+//   [ weather | user            ] [ media ]
+//   [ clock | calendar | usage  ] [       ]
+// ======================================================================
+
+component WeatherCard inherits Card {
+    level: 2;
+    StateLayer {
+        border-radius: parent.border-radius;
+        clicked => { Shell.action(Shell.weather-status == "ok" ? "dashboard-tab" : "settings-page", Shell.weather-status == "ok" ? "3" : "7"); }
+    }
+    HorizontalLayout {
+        padding: Theme.padding-large;
+        spacing: Theme.spacing-larger;
+        if Shell.weather-status == "ok": MaterialIcon {
+            text: Shell.weather.icon;
+            font-size: 48px;
+            color: Theme.c.secondary;
+        }
+        if Shell.weather-status == "ok": VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            StyledText { text: Shell.weather.temp; font-size: Theme.font-extra-large; color: Theme.c.primary; font-weight: 500; }
+            StyledText { text: Shell.weather.description; font-size: Theme.font-smaller; color: Theme.c.on-surface-variant; overflow: elide; }
+        }
+        if Shell.weather-status != "ok": MaterialIcon {
+            text: Shell.weather-status == "loading" ? "progress_activity" : "cloud_off";
+            font-size: 40px;
+            color: Theme.c.outline;
+        }
+        if Shell.weather-status != "ok": VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            StyledText { text: Shell.weather-status == "loading" ? @tr("Loading weather…") : @tr("Weather unavailable"); font-size: Theme.font-normal; }
+            StyledText { text: Shell.weather-status == "loading" ? @tr("Open-Meteo") : @tr("Click to set your location"); font-size: Theme.font-small; color: Theme.c.outline; overflow: elide; }
+        }
+    }
+}
+
+component UserCard inherits Card {
+    level: 2;
+    HorizontalLayout {
+        padding: Theme.padding-large;
+        spacing: Theme.spacing-larger;
+        Rectangle {
+            width: self.height;
+            border-radius: Theme.rounding-normal;
+            background: Theme.c.primary-container;
+            clip: true;
+            if Shell.user.has-avatar: Image { width: 100%; height: 100%; source: Shell.user.avatar; image-fit: cover; }
+            if !Shell.user.has-avatar: StyledText {
+                text: Shell.user.initial;
+                font-size: 30px;
+                font-weight: 700;
+                color: Theme.c.on-primary-container;
+                horizontal-alignment: center;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            horizontal-stretch: 1;
+            InfoLine { icon: "person"; text: Shell.user.name + "@" + Shell.user.host; tint: Theme.c.primary; }
+            InfoLine { icon: "desktop_windows"; text: Shell.user.os; tint: Theme.c.secondary; }
+            InfoLine { icon: "timer"; text: Shell.user.uptime; tint: Theme.c.tertiary; }
+        }
+    }
+}
+
+component ClockCard inherits Card {
+    level: 2;
+    VerticalLayout {
+        alignment: center;
+        spacing: 0;
+        StyledText { text: Shell.hours; font-size: 46px; font-family: Theme.t.font-clock; font-weight: 600; color: Theme.c.primary; horizontal-alignment: center; }
+        StyledText { text: "• • •"; font-size: Theme.font-small; color: Theme.c.outline; horizontal-alignment: center; }
+        StyledText { text: Shell.minutes; font-size: 46px; font-family: Theme.t.font-clock; font-weight: 600; color: Theme.c.secondary; horizontal-alignment: center; }
+        if Shell.ampm != "": StyledText { text: Shell.ampm; font-size: Theme.font-smaller; color: Theme.c.on-surface-variant; horizontal-alignment: center; }
+        Rectangle { height: Theme.spacing-small; }
+        StyledText { text: Shell.weekday; font-size: Theme.font-small; color: Theme.c.tertiary; horizontal-alignment: center; }
+        StyledText { text: Shell.date-short; font-size: Theme.font-small; color: Theme.c.on-surface-variant; horizontal-alignment: center; }
+    }
+}
+
+component ResourceBar inherits VerticalLayout {
+    in property <string> icon;
+    in property <float> value;
+    in property <color> accent;
+    spacing: Theme.spacing-small;
+    track := Rectangle {
+        vertical-stretch: 1;
+        width: 12px;
+        border-radius: 6px;
+        background: Theme.layer(Theme.c.secondary-container, 2);
+        Rectangle {
+            y: parent.height - self.height;
+            height: max(parent.width, parent.height * clamp(root.value, 0, 1));
+            border-radius: 6px;
+            background: root.accent;
+            animate height { duration: Theme.anim-large; easing: cubic-bezier(0.2, 0, 0, 1); }
+        }
+        hover := TouchArea { }
+    }
+    HorizontalLayout {
+        alignment: center;
+        MaterialIcon { text: root.icon; font-size: Theme.font-normal; color: root.accent; }
+    }
+    // Exact value on hover.
+    StyledText {
+        text: Math.round(root.value * 100) + "%";
+        font-size: Theme.font-small;
+        font-family: Theme.t.font-mono;
+        color: Theme.c.on-surface-variant;
+        horizontal-alignment: center;
+        opacity: hover.has-hover ? 1 : 0.55;
+        animate opacity { duration: Theme.anim-small; }
+    }
+}
+
+component ResourcesCard inherits Card {
+    level: 2;
+    HorizontalLayout {
+        padding: Theme.padding-large;
+        spacing: Theme.spacing-larger;
+        alignment: center;
+        ResourceBar { icon: "memory"; value: Shell.sys.cpu; accent: Theme.c.primary; }
+        ResourceBar { icon: "memory_alt"; value: Shell.sys.mem; accent: Theme.c.secondary; }
+        ResourceBar { icon: "hard_drive"; value: Shell.sys.disk; accent: Theme.c.tertiary; }
+    }
+}
+
+component MediaCard inherits Card {
+    level: 2;
+    VerticalLayout {
+        padding: Theme.padding-large;
+        spacing: Theme.spacing-small;
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            // Cover inside a circular progress ring, like Caelestia.
+            ring := CircularProgress {
+                width: 150px;
+                height: 150px;
+                sweep: 360deg;
+                thickness: 5px;
+                value: Shell.media.length > 0 ? Shell.media.position / Shell.media.length : 0;
+                Cover {
+                    width: parent.width - 22px;
+                    height: self.width;
+                    radius: self.width / 2;
+                }
+            }
+        }
+        Rectangle { height: 2px; }
+        StyledText {
+            text: Shell.media.available ? Shell.media.title : @tr("No media");
+            font-size: Theme.font-normal;
+            font-weight: 600;
+            color: Theme.c.primary;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+        StyledText {
+            text: Shell.media.available ? Shell.media.album : @tr("Play something to see it here");
+            font-size: Theme.font-small;
+            color: Theme.c.outline;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+        StyledText {
+            text: Shell.media.artist;
+            font-size: Theme.font-smaller;
+            color: Theme.c.secondary;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+        Rectangle { height: 2px; }
+        MediaControls { size: 34px; }
+    }
+}
+
+component OverviewTab inherits HorizontalLayout {
+    spacing: Theme.spacing-normal;
+    VerticalLayout {
+        spacing: Theme.spacing-normal;
+        horizontal-stretch: 1;
+        HorizontalLayout {
+            spacing: Theme.spacing-normal;
+            height: 100px;
+            WeatherCard { width: 250px; }
+            UserCard { horizontal-stretch: 1; }
+        }
+        HorizontalLayout {
+            spacing: Theme.spacing-normal;
+            vertical-stretch: 1;
+            ClockCard { width: 116px; }
+            Card {
+                level: 2;
+                horizontal-stretch: 1;
+                HorizontalLayout {
+                    alignment: center;
+                    padding: Theme.padding-normal;
+                    Calendar { cell: 34px; cell-height: 26px; }
+                }
+            }
+            ResourcesCard { width: 132px; }
+        }
+    }
+    MediaCard { width: 220px; }
+}
+
+// ======================================================================
+// Media tab
+// ======================================================================
+
+component MediaTab inherits HorizontalLayout {
+    spacing: Theme.spacing-large;
+    Cover {
+        width: self.height;
+        radius: Theme.rounding-large;
+    }
+    VerticalLayout {
+        alignment: center;
+        spacing: Theme.spacing-small;
+        horizontal-stretch: 1;
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            Rectangle {
+                height: 24px;
+                width: chip.preferred-width + 20px;
+                border-radius: 12px;
+                background: Theme.c.secondary-container;
+                visible: Shell.media.app != "";
+                chip := HorizontalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    MaterialIcon { text: Shell.media.playing ? "graphic_eq" : "pause_circle"; font-size: Theme.font-normal; color: Theme.c.on-secondary-container; }
+                    StyledText { text: Shell.media.app; font-size: Theme.font-small; color: Theme.c.on-secondary-container; }
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        StyledText {
+            text: Shell.media.available ? Shell.media.title : @tr("Nothing playing");
+            font-size: 22px;
+            font-weight: 600;
+            color: Theme.c.primary;
+            overflow: elide;
+        }
+        StyledText {
+            text: Shell.media.available ? Shell.media.artist : @tr("Start playback in any app (Spotify, a browser, Media Player…)");
+            font-size: Theme.font-larger;
+            color: Theme.c.secondary;
+            overflow: elide;
+        }
+        StyledText {
+            text: Shell.media.album;
+            font-size: Theme.font-normal;
+            color: Theme.c.on-surface-variant;
+            overflow: elide;
+        }
+        Rectangle { height: Theme.spacing-small; }
+        Timeline { }
+        MediaControls { size: 44px; }
+    }
+}
+
+// ======================================================================
+// Performance tab (screenshot 3)
+// ======================================================================
+
+component UsageCard inherits Card {
+    in property <string> help;
+    in property <string> icon;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> temp;
+    in property <float> usage;
+    level: 2;
+    HorizontalLayout {
+        padding: Theme.padding-large;
+        spacing: Theme.spacing-normal;
+        VerticalLayout {
+            spacing: Theme.spacing-small;
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                spacing: Theme.spacing-normal;
+                CircularProgress {
+                    width: 32px;
+                    height: 32px;
+                    value: root.usage;
+                    thickness: 3px;
+                    sweep: 360deg;
+                    MaterialIcon { text: root.icon; font-size: Theme.font-normal; color: Theme.c.on-surface-variant; }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    StyledText { text: root.title; font-size: Theme.font-larger; }
+                    StyledText { text: root.subtitle; font-size: Theme.font-small; color: Theme.c.on-surface-variant; overflow: elide; }
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: Theme.spacing-small;
+                MaterialIcon { text: "device_thermostat"; font-size: Theme.font-normal; color: root.temp == "N/A" ? Theme.c.outline : Theme.c.tertiary; }
+                if root.temp != "N/A" || root.help == "": StyledText { text: root.temp == "N/A" ? @tr("N/A") : root.temp; color: root.temp == "N/A" ? Theme.c.outline : Theme.c.on-surface; }
+                // No sensor: one click installs or starts LibreHardwareMonitor.
+                if root.temp == "N/A" && root.help != "": Rectangle {
+                    height: 24px;
+                    width: hint.preferred-width + 16px;
+                    border-radius: 12px;
+                    background: Theme.layer(Theme.c.secondary-container, 3);
+                    StateLayer { border-radius: parent.border-radius; tint: Theme.c.on-secondary-container; clicked => { Shell.action("cpu-temp", ""); } }
+                    hint := StyledText {
+                        text: root.help == "install" ? @tr("Install LibreHardwareMonitor") : @tr("Start LibreHardwareMonitor");
+                        font-size: Theme.font-small;
+                        color: Theme.c.on-secondary-container;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+            // No fixed width: a fixed child would cap the whole card's max-width.
+            LinearProgress { value: root.usage; }
+        }
+        VerticalLayout {
+            alignment: start;
+            spacing: Theme.spacing-small;
+            StyledText { text: @tr("Usage"); font-size: Theme.font-small; color: Theme.c.on-surface-variant; horizontal-alignment: center; }
+            Cookie { value: root.usage; size: 66px; }
+        }
+    }
+}
+
+component GaugeCard inherits Card {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> detail;
+    in property <float> value;
+    level: 2;
+    HorizontalLayout {
+        padding: Theme.padding-large;
+        spacing: Theme.spacing-larger;
+        alignment: center;
+        CircularProgress {
+            width: 88px;
+            height: 88px;
+            value: root.value;
+            thickness: 6px;
+            VerticalLayout {
+                alignment: center;
+                spacing: 0;
+                HorizontalLayout { alignment: center; MaterialIcon { text: root.icon; font-size: Theme.font-normal; color: Theme.c.on-surface-variant; } }
+                StyledText { text: Math.round(root.value * 100) + "%"; font-size: Theme.font-large; horizontal-alignment: center; }
+                StyledText { text: @tr("Used"); font-size: Theme.font-small; color: Theme.c.on-surface-variant; horizontal-alignment: center; }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            StyledText { text: root.title; font-size: Theme.font-larger; }
+            StyledText { text: root.detail; font-size: Theme.font-normal; color: Theme.c.on-surface-variant; }
+            @children
+        }
+    }
+}
+
+component NetworkCard inherits Card {
+    level: 2;
+    VerticalLayout {
+        padding: Theme.padding-large;
+        spacing: Theme.spacing-small;
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            MaterialIcon { text: "swap_vert"; color: Theme.c.on-surface-variant; }
+            StyledText { text: @tr("Network"); font-size: Theme.font-larger; horizontal-stretch: 1; }
+        }
+        Rectangle {
+            vertical-stretch: 1;
+            min-height: 36px;
+            Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 40;
+                stroke: Theme.c.primary;
+                stroke-width: 1.5px;
+                commands: Shell.sys.net-down-path;
+            }
+            Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 40;
+                stroke: Theme.c.tertiary;
+                stroke-width: 1px;
+                commands: Shell.sys.net-up-path;
+            }
+            Rectangle { y: parent.height - 1px; height: 1px; background: Theme.c.outline-variant; }
+        }
+        for row in [
+            { icon: "download", label: @tr("Download"), value: Shell.sys.net-down, col: Theme.c.primary },
+            { icon: "upload", label: @tr("Upload"), value: Shell.sys.net-up, col: Theme.c.tertiary },
+            { icon: "history", label: @tr("Total"), value: "↓" + Shell.sys.net-total-down + "  ↑" + Shell.sys.net-total-up, col: Theme.c.on-surface-variant },
+        ]: HorizontalLayout {
+            spacing: Theme.spacing-small;
+            MaterialIcon { text: row.icon; font-size: Theme.font-normal; color: row.col; }
+            StyledText { text: row.label; font-size: Theme.font-small; color: Theme.c.on-surface-variant; horizontal-stretch: 1; }
+            StyledText { text: row.value; font-size: Theme.font-small; font-family: Theme.t.font-mono; horizontal-alignment: right; }
+        }
+    }
+}
+
+component PerformanceTab inherits VerticalLayout {
+    spacing: Theme.spacing-normal;
+    HorizontalLayout {
+        spacing: Theme.spacing-normal;
+        UsageCard { horizontal-stretch: 1; icon: "memory"; title: @tr("CPU"); subtitle: Shell.sys.cpu-name; temp: Shell.sys.cpu-temp; help: Shell.sys.cpu-temp-help; usage: Shell.sys.cpu; }
+        UsageCard { horizontal-stretch: 1; icon: "desktop_windows"; title: @tr("GPU"); subtitle: Shell.sys.gpu-name; temp: Shell.sys.gpu-temp; usage: Shell.sys.gpu; }
+    }
+    HorizontalLayout {
+        spacing: Theme.spacing-normal;
+        vertical-stretch: 1;
+        GaugeCard {
+            horizontal-stretch: 1;
+            icon: "hard_drive";
+            title: @tr("Storage");
+            detail: Shell.sys.disk-used + " / " + Shell.sys.disk-total;
+            value: Shell.sys.disk;
+            // Disk picker (cycles through drives), like Caelestia's dropdown.
+            Rectangle {
+                height: 28px;
+                width: picker.preferred-width + 20px;
+                border-radius: 14px;
+                background: Theme.layer(Theme.c.secondary-container, 3);
+                StateLayer { border-radius: parent.border-radius; tint: Theme.c.on-secondary-container; clicked => { Shell.action("disk-next", ""); } }
+                picker := HorizontalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    MaterialIcon { text: "storage"; font-size: Theme.font-normal; color: Theme.c.on-secondary-container; }
+                    StyledText { text: Shell.sys.disk-name; font-size: Theme.font-small; color: Theme.c.on-secondary-container; }
+                    if Shell.sys.disk-count > 1: MaterialIcon { text: "unfold_more"; font-size: Theme.font-normal; color: Theme.c.on-secondary-container; }
+                }
+            }
+        }
+        NetworkCard { horizontal-stretch: 1; }
+        GaugeCard {
+            horizontal-stretch: 1;
+            icon: "memory_alt";
+            title: @tr("Memory");
+            detail: Shell.sys.mem-used + " / " + Shell.sys.mem-total;
+            value: Shell.sys.mem;
+        }
+    }
+}
+
+// ======================================================================
+// Weather tab
+// ======================================================================
+
+component DetailTile inherits Card {
+    in property <string> icon;
+    in property <string> label;
+    in property <string> value;
+    level: 2;
+    HorizontalLayout {
+        padding: Theme.padding-normal;
+        spacing: Theme.spacing-normal;
+        Rectangle {
+            width: 34px;
+            height: 34px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 17px;
+            background: Theme.c.tertiary-container;
+            MaterialIcon { text: root.icon; font-size: Theme.font-larger; color: Theme.c.on-tertiary-container; }
+        }
+        VerticalLayout {
+            alignment: center;
+            StyledText { text: root.label; font-size: Theme.font-small; color: Theme.c.on-surface-variant; overflow: elide; }
+            StyledText { text: root.value; font-size: Theme.font-normal; overflow: elide; }
+        }
+    }
+}
+
+component WeatherTab inherits VerticalLayout {
+    spacing: Theme.spacing-normal;
+    if Shell.weather-status != "ok": Card {
+        level: 2;
+        vertical-stretch: 1;
+        VerticalLayout {
+            alignment: center;
+            spacing: Theme.spacing-small;
+            HorizontalLayout { alignment: center; MaterialIcon { text: Shell.weather-status == "loading" ? "progress_activity" : "cloud_off"; font-size: 56px; color: Theme.c.outline; } }
+            StyledText { text: Shell.weather-status == "loading" ? @tr("Loading weather…") : @tr("Weather unavailable"); font-size: Theme.font-large; horizontal-alignment: center; }
+            StyledText { text: @tr("Pick your city or detect your location."); color: Theme.c.on-surface-variant; horizontal-alignment: center; }
+            HorizontalLayout {
+                alignment: center;
+                spacing: Theme.spacing-small;
+                IconButton { icon: "edit_location_alt"; kind: ButtonKind.filled; clicked => { Shell.action("settings-page", "7"); } }
+                IconButton { icon: "refresh"; kind: ButtonKind.tonal; clicked => { Shell.action("weather-refresh", ""); } }
+            }
+        }
+    }
+    if Shell.weather-status == "ok": HorizontalLayout {
+        spacing: Theme.spacing-normal;
+        vertical-stretch: 1;
+        Card {
+            level: 2;
+            width: 300px;
+            VerticalLayout {
+                padding: Theme.padding-large;
+                spacing: Theme.spacing-small;
+                alignment: center;
+                HorizontalLayout {
+                    spacing: Theme.spacing-small;
+                    MaterialIcon { text: "location_on"; font-size: Theme.font-normal; color: Theme.c.primary; }
+                    StyledText { text: Shell.weather.city != "" ? Shell.weather.city : @tr("Current location"); color: Theme.c.on-surface-variant; overflow: elide; horizontal-stretch: 1; }
+                    IconButton { icon: "edit_location_alt"; size: 26px; icon-size: Theme.font-normal; clicked => { Shell.action("settings-page", "7"); } }
+                    IconButton { icon: "refresh"; size: 26px; icon-size: Theme.font-normal; clicked => { Shell.action("weather-refresh", ""); } }
+                }
+                HorizontalLayout {
+                    spacing: Theme.spacing-large;
+                    MaterialIcon { text: Shell.weather.icon; font-size: 72px; color: Theme.c.secondary; }
+                    VerticalLayout {
+                        alignment: center;
+                        StyledText { text: Shell.weather.temp; font-size: 44px; color: Theme.c.primary; font-weight: 500; }
+                        StyledText { text: Shell.weather.description; font-size: Theme.font-larger; overflow: elide; }
+                    }
+                }
+            }
+        }
+        GridLayout {
+            spacing: Theme.spacing-small;
+            horizontal-stretch: 1;
+            Row {
+                DetailTile { icon: "thermostat"; label: @tr("Feels like"); value: Shell.weather.feels; }
+                DetailTile { icon: "humidity_percentage"; label: @tr("Humidity"); value: Shell.weather.humidity; }
+            }
+            Row {
+                DetailTile { icon: "air"; label: @tr("Wind"); value: Shell.weather.wind; }
+                DetailTile { icon: "rainy"; label: @tr("Precipitation"); value: Shell.weather.precipitation; }
+            }
+            Row {
+                DetailTile { icon: "wb_twilight"; label: @tr("Sunrise"); value: Shell.weather.sunrise; }
+                DetailTile { icon: "nights_stay"; label: @tr("Sunset"); value: Shell.weather.sunset; }
+            }
+        }
+    }
+    if Shell.weather-status == "ok": HorizontalLayout {
+        spacing: Theme.spacing-small;
+        height: 104px;
+        for d[i] in Shell.weather.forecast: Card {
+            level: 2;
+            horizontal-stretch: 1;
+            background: i == 0 ? Theme.layer(Theme.c.secondary-container, 2) : Theme.layer(Theme.c.surface-container-high, 2);
+            VerticalLayout {
+                padding: Theme.padding-normal;
+                spacing: 2px;
+                alignment: center;
+                StyledText { text: d.day; font-size: Theme.font-small; color: i == 0 ? Theme.c.on-secondary-container : Theme.c.on-surface-variant; horizontal-alignment: center; }
+                HorizontalLayout { alignment: center; MaterialIcon { text: d.icon; font-size: 28px; color: Theme.c.secondary; } }
+                StyledText { text: d.max; font-size: Theme.font-normal; horizontal-alignment: center; }
+                StyledText { text: d.min; font-size: Theme.font-small; color: Theme.c.on-surface-variant; horizontal-alignment: center; }
+            }
+        }
+    }
+}
+
+// ======================================================================
+// window
+// ======================================================================
+
+export component DashboardWindow inherits Window {
+    title: "caelestia-dashboard";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in-out property <bool> open;
+    in-out property <int> tab: 0;
+    out property <length> blur-x: frame.panel-x;
+    out property <length> blur-y: frame.panel-y;
+    out property <length> blur-w: frame.panel-w;
+    out property <length> blur-h: frame.panel-h;
+
+    // Natural size of each tab (content + tab bar + padding).
+    property <[{w: length, h: length}]> sizes: [
+        { w: 800px, h: 444px },
+        { w: 700px, h: 330px },
+        { w: 900px, h: 400px },
+        { w: 800px, h: 386px },
+    ];
+    // One motion for everything: the panel size, the page strip and the tab
+    // indicator share duration and curve, so the target page lands exactly
+    // in place as the panel finishes morphing (Caelestia's swipe feel).
+    property <length> pw: root.sizes[root.tab].w;
+    property <length> ph: root.sizes[root.tab].h;
+    animate pw, ph { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+    // Animated tab position (float) drives the indicator and page dimming
+    // without depending on the morphing width (no animation restarts).
+    property <float> pos: root.tab;
+    animate pos { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+
+    property <length> page-gap: Theme.padding-large * 2;
+    pure function inner-w(i: int) -> length { root.sizes[i].w - Theme.padding-large * 2 }
+    pure function inner-h(i: int) -> length { root.sizes[i].h - 46px - Theme.spacing-normal - Theme.padding-small - Theme.padding-large }
+    // Left edge of page `i` inside the strip.
+    pure function slot(i: int) -> length {
+        i <= 0 ? 0 : i == 1 ? root.inner-w(0) + root.page-gap
+            : i == 2 ? root.inner-w(0) + root.inner-w(1) + root.page-gap * 2
+            : root.inner-w(0) + root.inner-w(1) + root.inner-w(2) + root.page-gap * 3
+    }
+
+    width: 900px + Theme.t.border-rounding * 2;
+    height: 444px;
+
+    frame := DrawerFrame {
+        edge: Edge.top;
+        open: root.open;
+        panel-width: root.pw;
+        panel-height: root.ph;
+
+        VerticalLayout {
+            padding: Theme.padding-large;
+            padding-top: Theme.padding-small;
+            spacing: Theme.spacing-normal;
+
+            tabs := Rectangle {
+                height: 46px;
+                property <length> tab-w: self.width / 4;
+                // Mouse wheel over the tab bar switches tabs (declared first so
+                // the tab buttons stay on top for clicks).
+                TouchArea {
+                    scroll-event(e) => {
+                        root.tab = Math.clamp(root.tab + (e.delta-y > 0 ? -1 : 1), 0, 3);
+                        accept
+                    }
+                }
+                HorizontalLayout {
+                    for t[i] in [
+                        { icon: "dashboard", label: @tr("Dashboard") },
+                        { icon: "queue_music", label: @tr("Media") },
+                        { icon: "speed", label: @tr("Performance") },
+                        { icon: "cloud", label: @tr("Weather") },
+                    ]: Tab {
+                        icon: t.icon;
+                        label: t.label;
+                        active: root.tab == i;
+                        clicked => { root.tab = i; }
+                    }
+                }
+                Rectangle {
+                    y: parent.height - self.height;
+                    height: 1px;
+                    background: Theme.c.outline-variant.with-alpha(0.5);
+                }
+                Rectangle {
+                    x: root.pos * tabs.tab-w + tabs.tab-w * 0.2;
+                    y: parent.height - self.height;
+                    width: tabs.tab-w * 0.6;
+                    height: 3px;
+                    border-radius: 2px;
+                    background: Theme.c.primary;
+                }
+            }
+
+            pages := Rectangle {
+                vertical-stretch: 1;
+                clip: true;
+                // All pages side by side on one strip; the viewport (this
+                // rectangle) is as wide as the current page, the strip slides.
+                strip := Rectangle {
+                    x: -root.slot(root.tab);
+                    y: 0;
+                    width: root.slot(3) + root.inner-w(3);
+                    height: pages.height;
+                    animate x { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+                    for page in 4: Rectangle {
+                        x: root.slot(page);
+                        y: 0;
+                        width: root.inner-w(page);
+                        height: root.inner-h(page);
+                        // Neighbours dim as they slide out of view.
+                        opacity: 1 - Math.min(1, Math.abs(page - root.pos)) * 0.75;
+                        visible: Math.abs(page - root.pos) < 1.0;
+                        if page == 0: OverviewTab { }
+                        if page == 1: MediaTab { }
+                        if page == 2: PerformanceTab { }
+                        if page == 3: WeatherTab { }
+                    }
+                }
+            }
+        }
+    }
+}

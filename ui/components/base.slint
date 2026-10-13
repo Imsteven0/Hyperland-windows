@@ -1,0 +1,427 @@
+// Core building blocks shared by every module (StyledText, MaterialIcon,
+// StateLayer, IconButton, StyledSwitch, ...) — mirrors Caelestia's widgets/.
+import { Theme } from "../theme.slint";
+
+export component StyledText inherits Text {
+    color: Theme.c.on-surface;
+    font-family: Theme.t.font-sans;
+    font-size: Theme.font-normal;
+    vertical-alignment: center;
+    animate color { duration: Theme.anim-small; easing: cubic-bezier(0.2, 0, 0, 1); }
+}
+
+// Icons use Material Symbols ligatures, exactly like Caelestia (`text: "wifi"`).
+export component MaterialIcon inherits Text {
+    in property <bool> fill;
+    color: Theme.c.on-surface;
+    font-family: Theme.t.font-material;
+    font-size: Theme.font-larger;
+    font-weight: root.fill ? 600 : 400;
+    // Material Symbols glyphs are 1em squares. Slint measures the ligature's
+    // source text ("search", "wifi"...) instead, which made icon boxes as wide
+    // as the word and pushed neighbours around; pin the box to 1em.
+    preferred-width: self.font-size * 1.2;
+    preferred-height: self.font-size * 1.2;
+    min-width: self.font-size;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    horizontal-alignment: center;
+    vertical-alignment: center;
+    animate color { duration: Theme.anim-small; easing: cubic-bezier(0.2, 0, 0, 1); }
+}
+
+// Hover / press overlay used by every interactive surface.
+export component StateLayer inherits Rectangle {
+    in property <color> tint: Theme.c.on-surface;
+    in property <bool> disabled;
+    in property <MouseCursor> cursor: pointer;
+    // Only consume the mouse wheel when the owner wants it, so scrolling over
+    // a button still reaches the scrollable/tabbed container behind it.
+    in property <bool> handle-scroll: false;
+    out property <bool> hovered: ta.has-hover;
+    out property <bool> pressed: ta.pressed;
+    callback clicked();
+    callback right-clicked();
+    callback scrolled(/* delta-y */ length);
+
+    background: root.disabled ? transparent : Theme.state(root.tint, ta.has-hover, ta.pressed);
+    animate background { duration: Theme.anim-small; easing: cubic-bezier(0.2, 0, 0, 1); }
+
+    ta := TouchArea {
+        enabled: !root.disabled;
+        mouse-cursor: root.cursor;
+        clicked => { root.clicked(); }
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.down && e.button == PointerEventButton.right {
+                root.right-clicked();
+            }
+        }
+        scroll-event(e) => {
+            if !root.handle-scroll { return reject; }
+            root.scrolled(e.delta-y);
+            accept
+        }
+    }
+    @children
+}
+
+export enum ButtonKind { filled, tonal, text, outlined }
+
+export component IconButton inherits Rectangle {
+    in property <string> icon;
+    in property <ButtonKind> kind: ButtonKind.text;
+    in property <bool> toggled;
+    in property <bool> checkable;
+    in property <length> size: 40px;
+    in property <length> icon-size: Theme.font-large;
+    in property <color> active-bg: Theme.c.primary;
+    in property <color> active-fg: Theme.c.on-primary;
+    in property <color> inactive-bg: Theme.layer(Theme.c.surface-container-high, 2);
+    in property <color> inactive-fg: Theme.c.on-surface-variant;
+    in property <bool> disabled;
+    callback clicked();
+
+    property <bool> on: root.kind == ButtonKind.filled || (root.checkable && root.toggled);
+    width: root.size;
+    height: root.size;
+    border-radius: root.on && root.checkable ? Theme.rounding-small : self.height / 2;
+    background: root.kind == ButtonKind.text && !root.on ? transparent
+        : root.on ? root.active-bg
+        : root.kind == ButtonKind.tonal ? root.inactive-bg : transparent;
+    border-width: root.kind == ButtonKind.outlined ? 1px : 0;
+    border-color: Theme.c.outline-variant;
+    opacity: root.disabled ? 0.38 : 1;
+    animate background, border-radius { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+
+    StateLayer {
+        border-radius: parent.border-radius;
+        tint: root.on ? root.active-fg : Theme.c.on-surface;
+        disabled: root.disabled;
+        clicked => { root.clicked(); }
+    }
+    MaterialIcon {
+        text: root.icon;
+        fill: root.on;
+        font-size: root.icon-size;
+        color: root.on ? root.active-fg : root.inactive-fg;
+    }
+}
+
+// Pill button with icon + label (e.g. "Wallpapers", "Region").
+export component TextButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> text;
+    in property <ButtonKind> kind: ButtonKind.tonal;
+    in property <length> font-size: Theme.font-normal;
+    callback clicked();
+
+    property <color> fg: root.kind == ButtonKind.filled ? Theme.c.on-primary
+        : root.kind == ButtonKind.tonal ? Theme.c.on-secondary-container : Theme.c.primary;
+    height: max(36px, row.preferred-height + Theme.padding-normal);
+    min-width: row.preferred-width + Theme.padding-large * 2;
+    border-radius: self.height / 2;
+    background: root.kind == ButtonKind.filled ? Theme.c.primary
+        : root.kind == ButtonKind.tonal ? Theme.layer(Theme.c.secondary-container, 2) : transparent;
+    border-width: root.kind == ButtonKind.outlined ? 1px : 0;
+    border-color: Theme.c.outline-variant;
+
+    StateLayer {
+        border-radius: parent.border-radius;
+        tint: root.fg;
+        clicked => { root.clicked(); }
+    }
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: Theme.spacing-small;
+        padding-left: Theme.padding-large;
+        padding-right: Theme.padding-large;
+        if root.icon != "": MaterialIcon {
+            text: root.icon;
+            color: root.fg;
+            font-size: root.font-size * 1.2;
+        }
+        StyledText {
+            text: root.text;
+            color: root.fg;
+            font-size: root.font-size;
+        }
+    }
+}
+
+// Caelestia's StyledSwitch: rounded track, thumb grows and shows a check/close icon.
+export component StyledSwitch inherits Rectangle {
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
+    width: 48px;
+    height: 28px;
+    border-radius: self.height / 2;
+    background: root.checked ? Theme.c.primary : Theme.layer(Theme.c.surface-container-highest, 2);
+    border-width: root.checked ? 0 : 2px;
+    border-color: Theme.c.outline;
+    opacity: root.enabled ? 1 : 0.38;
+    animate background { duration: Theme.anim-small; easing: cubic-bezier(0.2, 0, 0, 1); }
+
+    property <length> thumb: ta.pressed ? 26px : root.checked ? 22px : 16px;
+    knob := Rectangle {
+        width: root.thumb;
+        height: root.thumb;
+        y: (root.height - self.height) / 2;
+        x: root.checked ? root.width - self.width - (root.height - self.height) / 2 : (root.height - self.height) / 2;
+        border-radius: self.height / 2;
+        background: root.checked ? Theme.c.on-primary : Theme.c.outline;
+        animate x, width, height { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+
+        MaterialIcon {
+            text: root.checked ? "check" : "close";
+            font-size: 14px;
+            color: root.checked ? Theme.c.primary : Theme.c.surface-container-highest;
+            opacity: root.checked ? 1 : 0;
+            animate opacity { duration: Theme.anim-small; }
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+export component StyledSlider inherits Rectangle {
+    in-out property <float> value: 0.5;
+    in property <float> minimum: 0;
+    in property <float> maximum: 1;
+    in property <float> step: 0;
+    in property <string> icon;
+    callback changed(float);
+    callback released(float);
+
+    property <float> ratio: (root.value - root.minimum) / max(0.0001, root.maximum - root.minimum);
+    height: 36px;
+    background: transparent;
+
+    track := Rectangle {
+        y: (root.height - self.height) / 2;
+        height: root.height * 0.55;
+        border-radius: Theme.rounding-full;
+        background: Theme.layer(Theme.c.secondary-container, 2);
+        clip: true;
+
+        Rectangle {
+            x: 0;
+            width: max(parent.height, parent.width * root.ratio);
+            border-radius: Theme.rounding-full;
+            background: Theme.c.primary;
+        }
+        if root.icon != "": MaterialIcon {
+            x: Theme.padding-normal;
+            width: self.preferred-width;
+            text: root.icon;
+            font-size: Theme.font-larger;
+            color: Theme.c.on-primary;
+        }
+    }
+    handle := Rectangle {
+        width: 4px;
+        height: root.height;
+        x: clamp(root.width * root.ratio - self.width / 2, 0, root.width - self.width);
+        border-radius: 2px;
+        background: Theme.c.primary;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        moved => { root.set-from(self.mouse-x); }
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.down { root.set-from(self.mouse-x); }
+            if e.kind == PointerEventKind.up { root.released(root.value); }
+        }
+        scroll-event(e) => {
+            root.value = clamp(root.value + (e.delta-y > 0 ? 1 : -1) * (root.step > 0 ? root.step : (root.maximum - root.minimum) / 20), root.minimum, root.maximum);
+            root.changed(root.value);
+            root.released(root.value);
+            accept
+        }
+    }
+    function set-from(px: length) {
+        let r = clamp(px / root.width, 0, 1);
+        let raw = root.minimum + r * (root.maximum - root.minimum);
+        root.value = root.step > 0 ? Math.round(raw / root.step) * root.step : raw;
+        root.changed(root.value);
+    }
+}
+
+// Circular arc progress (dashboard resources / storage / memory gauges).
+export component CircularProgress inherits Rectangle {
+    in property <float> value;           // 0..1
+    in property <length> thickness: 6px;
+    in property <color> fg: Theme.c.primary;
+    in property <color> bg: Theme.layer(Theme.c.secondary-container, 2);
+    in property <angle> sweep: 280deg;   // gap at the bottom like Caelestia's gauges
+    in property <length> gap-padding: 0px;
+
+    property <float> v: clamp(root.value, 0, 0.9999);
+    property <float> size: min(root.width, root.height) / 1px;
+    property <float> r: (root.size - root.thickness / 1px) / 2;
+    property <float> cx: root.width / 1px / 2;
+    property <float> cy: root.height / 1px / 2;
+    property <angle> start: 90deg + (360deg - root.sweep) / 2;
+    property <angle> end-bg: root.start + root.sweep;
+    property <angle> end-fg: root.start + root.sweep * root.v;
+    animate v { duration: Theme.anim-large; easing: cubic-bezier(0.2, 0, 0, 1); }
+
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: root.width / 1px;
+        viewbox-height: root.height / 1px;
+        stroke: root.bg;
+        stroke-width: root.thickness;
+        stroke-line-cap: round;
+        // Path elements, not a `commands` string: float->string uses the UI
+        // locale's decimal separator ("30,5" in Spanish) and breaks SVG syntax.
+        MoveTo { x: root.cx + root.r * Math.cos(root.start); y: root.cy + root.r * Math.sin(root.start); }
+        ArcTo {
+            x: root.cx + root.r * Math.cos(root.end-bg);
+            y: root.cy + root.r * Math.sin(root.end-bg);
+            radius-x: root.r;
+            radius-y: root.r;
+            large-arc: root.sweep > 180deg;
+            sweep: true;
+        }
+    }
+    if root.v > 0.005: Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: root.width / 1px;
+        viewbox-height: root.height / 1px;
+        stroke: root.fg;
+        stroke-width: root.thickness;
+        stroke-line-cap: round;
+        MoveTo { x: root.cx + root.r * Math.cos(root.start); y: root.cy + root.r * Math.sin(root.start); }
+        ArcTo {
+            x: root.cx + root.r * Math.cos(root.end-fg);
+            y: root.cy + root.r * Math.sin(root.end-fg);
+            radius-x: root.r;
+            radius-y: root.r;
+            large-arc: root.sweep * root.v > 180deg;
+            sweep: true;
+        }
+    }
+    @children
+}
+
+// Thin rounded linear progress bar.
+export component LinearProgress inherits Rectangle {
+    in property <float> value;
+    in property <color> fg: Theme.c.primary;
+    height: 5px;
+    border-radius: self.height / 2;
+    background: Theme.layer(Theme.c.secondary-container, 2);
+    Rectangle {
+        x: 0;
+        width: parent.width * clamp(root.value, 0, 1);
+        border-radius: parent.border-radius;
+        background: root.fg;
+        animate width { duration: Theme.anim-large; easing: cubic-bezier(0.2, 0, 0, 1); }
+    }
+}
+
+export component StyledInput inherits Rectangle {
+    in property <string> placeholder;
+    in property <string> icon: "search";
+    in-out property <string> text <=> input.text;
+    in property <length> font-size: Theme.font-larger;
+    callback accepted(string);
+    callback edited(string);
+    public function focus-input() { input.focus(); }
+    public function clear() { input.text = ""; }
+
+    height: 44px;
+    border-radius: Theme.rounding-full;
+    background: Theme.layer(Theme.c.surface-container-highest, 2);
+
+    HorizontalLayout {
+        padding-left: Theme.padding-larger;
+        padding-right: Theme.padding-larger;
+        spacing: Theme.spacing-small;
+        if root.icon != "": MaterialIcon {
+            width: root.font-size * 1.4;
+            text: root.icon;
+            color: Theme.c.on-surface-variant;
+            font-size: root.font-size * 1.15;
+        }
+        field := Rectangle {
+            horizontal-stretch: 1;
+            StyledText {
+                x: 0;
+                width: parent.width;
+                text: root.placeholder;
+                color: Theme.c.outline;
+                font-size: root.font-size;
+                horizontal-alignment: left;
+                overflow: elide;
+                // Fade the hint out as soon as the user types.
+                opacity: input.text == "" ? 1 : 0;
+                animate opacity { duration: Theme.anim-small; }
+            }
+            input := TextInput {
+                x: 0;
+                width: parent.width;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+                color: Theme.c.on-surface;
+                font-family: Theme.t.font-sans;
+                font-size: root.font-size;
+                selection-background-color: Theme.c.primary.with-alpha(0.4);
+                selection-foreground-color: Theme.c.on-surface;
+                single-line: true;
+                accepted => { root.accepted(self.text); }
+                edited => { root.edited(self.text); }
+            }
+        }
+    }
+}
+
+// Concave corner that glues a drawer to the screen border (Caelestia "flare").
+// `corner` is which corner of the flare square is the solid one.
+export enum FlareCorner { top-left, top-right, bottom-left, bottom-right }
+
+export component Flare inherits Path {
+    in property <FlareCorner> corner: FlareCorner.top-left;
+    in property <color> color;
+    property <float> s: self.width / 1px;
+    viewbox-width: self.s;
+    viewbox-height: self.s;
+    fill: root.color;
+    animate fill { duration: Theme.anim-normal; }
+    stroke-width: 0;
+    // The solid part hugs `corner`; a quarter circle is carved out of the
+    // opposite one: move to p0, line to p1, concave arc to p2, close.
+    property <float> p0x: root.corner == FlareCorner.top-left || root.corner == FlareCorner.bottom-left ? 0 : s;
+    property <float> p0y: root.corner == FlareCorner.top-left || root.corner == FlareCorner.top-right ? 0 : s;
+    property <float> p1x: root.corner == FlareCorner.top-left ? s : root.corner == FlareCorner.top-right ? s : 0;
+    property <float> p1y: root.corner == FlareCorner.top-left ? 0 : root.corner == FlareCorner.bottom-left ? 0 : s;
+    property <float> p2x: root.corner == FlareCorner.top-left ? 0 : root.corner == FlareCorner.top-right ? 0 : s;
+    property <float> p2y: root.corner == FlareCorner.top-left ? s : root.corner == FlareCorner.top-right ? 0 : root.corner == FlareCorner.bottom-left ? s : 0;
+    MoveTo { x: root.p0x; y: root.p0y; }
+    LineTo { x: root.p1x; y: root.p1y; }
+    ArcTo { x: root.p2x; y: root.p2y; radius-x: root.s; radius-y: root.s; large-arc: false; sweep: false; }
+    Close { }
+}
+
+export component Separator inherits Rectangle {
+    height: 1px;
+    background: Theme.c.outline-variant.with-alpha(0.5);
+}
+
+// Card surface used throughout the dashboard / utilities.
+export component Card inherits Rectangle {
+    in property <int> level: 1;
+    border-radius: Theme.rounding-normal;
+    background: Theme.layer(root.level <= 1 ? Theme.c.surface-container : Theme.c.surface-container-high, root.level);
+    animate background { duration: Theme.anim-normal; easing: cubic-bezier(0.2, 0, 0, 1); }
+}

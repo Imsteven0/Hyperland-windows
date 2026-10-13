@@ -1,0 +1,77 @@
+// Right-edge drawer (Caelestia modules/session): logout, shutdown, sleep,
+// restart and lock as large tonal buttons with keyboard navigation.
+import { Theme } from "../theme.slint";
+import { Shell } from "../state.slint";
+import { MaterialIcon, StateLayer } from "../components/base.slint";
+import { DrawerFrame, Edge } from "../components/drawer.slint";
+
+export component SessionWindow inherits Window {
+    title: "caelestia-session";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in-out property <bool> open;
+    in-out property <int> focused: 1;
+    callback dismiss();
+
+    out property <length> blur-x: frame.panel-x;
+    out property <length> blur-y: frame.panel-y;
+    out property <length> blur-w: frame.panel-w;
+    out property <length> blur-h: frame.panel-h;
+    public function focus-keys() { keys.focus(); }
+
+    property <length> btn: 72px;
+    property <[{icon: string, id: string}]> items: [
+        { icon: "logout", id: "logout" },
+        { icon: "power_settings_new", id: "shutdown" },
+        { icon: "dark_mode", id: "sleep" },
+        { icon: "restart_alt", id: "reboot" },
+        { icon: "lock", id: "lock" },
+    ];
+    property <length> panel-w: root.btn + Theme.padding-large * 2;
+    property <length> panel-h: root.items.length * (root.btn + Theme.spacing-large) - Theme.spacing-large + Theme.padding-large * 2;
+
+    width: root.panel-w;
+    height: root.panel-h + Theme.t.border-rounding * 2;
+
+    frame := DrawerFrame {
+        edge: Edge.right;
+        open: root.open;
+        panel-width: root.panel-w;
+        panel-height: root.panel-h;
+
+        keys := FocusScope {
+            key-pressed(e) => {
+                if e.text == Key.Escape { root.dismiss(); return accept; }
+                if e.text == Key.UpArrow { root.focused = max(0, root.focused - 1); return accept; }
+                if e.text == Key.DownArrow { root.focused = min(root.items.length - 1, root.focused + 1); return accept; }
+                if e.text == Key.Return { Shell.action("session", root.items[root.focused].id); return accept; }
+                reject
+            }
+            VerticalLayout {
+                padding: Theme.padding-large;
+                spacing: Theme.spacing-large;
+                for it[i] in root.items: Rectangle {
+                    width: root.btn;
+                    height: root.btn;
+                    property <bool> active: i == root.focused;
+                    border-radius: self.active ? Theme.rounding-large : Theme.rounding-normal;
+                    background: self.active ? Theme.c.secondary-container : Theme.layer(Theme.c.surface-container-high, 2);
+                    animate border-radius, background { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+                    st := StateLayer {
+                        border-radius: parent.border-radius;
+                        tint: Theme.c.on-secondary-container;
+                        clicked => { Shell.action("session", it.id); }
+                    }
+                    MaterialIcon {
+                        text: it.icon;
+                        font-size: 30px;
+                        fill: parent.active;
+                        color: parent.active ? Theme.c.on-secondary-container : Theme.c.on-surface;
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,131 @@
+// Device lists shared by the bar popouts and the Settings pages: audio
+// endpoints (pick the default) and paired Bluetooth devices (connect,
+// disconnect, forget).
+import { Theme } from "../theme.slint";
+import { Shell, AudioDevice, BtDevice } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind } from "base.slint";
+
+// One selectable audio endpoint (radio row).
+export component AudioDeviceRow inherits Rectangle {
+    in property <AudioDevice> device;
+    in property <string> icon: "speaker";
+    height: 34px;
+    border-radius: Theme.rounding-small;
+    background: root.device.default ? Theme.layer(Theme.c.secondary-container, 3) : transparent;
+    animate background { duration: Theme.anim-small; }
+    StateLayer {
+        border-radius: parent.border-radius;
+        clicked => { Shell.action("audio-default", root.device.id); }
+    }
+    HorizontalLayout {
+        padding-left: Theme.padding-normal;
+        padding-right: Theme.padding-normal;
+        spacing: Theme.spacing-small;
+        MaterialIcon {
+            text: root.device.default ? "radio_button_checked" : "radio_button_unchecked";
+            font-size: Theme.font-larger;
+            color: root.device.default ? Theme.c.primary : Theme.c.outline;
+        }
+        MaterialIcon { text: root.icon; font-size: Theme.font-normal; color: Theme.c.on-surface-variant; }
+        StyledText {
+            horizontal-stretch: 1;
+            text: root.device.name;
+            font-size: Theme.font-smaller;
+            overflow: elide;
+            color: root.device.default ? Theme.c.on-secondary-container : Theme.c.on-surface;
+        }
+    }
+}
+
+export component AudioDeviceList inherits VerticalLayout {
+    in property <[AudioDevice]> devices;
+    in property <string> icon: "speaker";
+    spacing: 2px;
+    for d in root.devices: AudioDeviceRow { device: d; icon: root.icon; }
+}
+
+// One paired Bluetooth device with its actions.
+export component BtDeviceRow inherits Rectangle {
+    in property <BtDevice> device;
+    // Forgetting a device needs a second click within 3 s.
+    property <bool> confirm-forget;
+    Timer {
+        interval: 3s;
+        running: root.confirm-forget;
+        triggered => { root.confirm-forget = false; }
+    }
+    height: 46px;
+    border-radius: Theme.rounding-small;
+    background: Theme.layer(Theme.c.surface-container-high, 2);
+    HorizontalLayout {
+        padding-left: Theme.padding-small;
+        padding-right: Theme.padding-small;
+        spacing: Theme.spacing-small;
+        Rectangle {
+            width: 34px;
+            height: 34px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 17px;
+            background: root.device.connected ? Theme.c.primary : Theme.layer(Theme.c.surface-container-highest, 3);
+            animate background { duration: Theme.anim-small; }
+            MaterialIcon {
+                text: root.device.icon;
+                font-size: Theme.font-larger;
+                color: root.device.connected ? Theme.c.on-primary : Theme.c.on-surface-variant;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            StyledText { text: root.device.name; font-size: Theme.font-smaller; overflow: elide; }
+            StyledText {
+                text: root.device.busy ? (root.device.connected ? @tr("Disconnecting…") : @tr("Connecting…"))
+                    : root.device.connected ? @tr("Connected") : @tr("Not connected");
+                font-size: Theme.font-small;
+                color: root.device.connected ? Theme.c.primary : Theme.c.outline;
+            }
+        }
+        // Audio devices can be (dis)connected on demand; others connect by themselves.
+        if root.device.audio: IconButton {
+            y: (parent.height - self.height) / 2;
+            icon: root.device.connected ? "link_off" : "link";
+            kind: ButtonKind.tonal;
+            size: 30px;
+            icon-size: Theme.font-larger;
+            disabled: root.device.busy;
+            clicked => { Shell.action(root.device.connected ? "bt-disconnect" : "bt-connect", root.device.id); }
+        }
+        IconButton {
+            y: (parent.height - self.height) / 2;
+            icon: root.confirm-forget ? "delete_forever" : "delete";
+            kind: root.confirm-forget ? ButtonKind.filled : ButtonKind.text;
+            checkable: root.confirm-forget;
+            toggled: root.confirm-forget;
+            active-bg: Theme.c.error;
+            active-fg: Theme.c.on-error;
+            size: 30px;
+            icon-size: Theme.font-larger;
+            inactive-fg: Theme.c.error;
+            disabled: root.device.busy;
+            clicked => {
+                if root.confirm-forget {
+                    root.confirm-forget = false;
+                    Shell.action("bt-forget", root.device.id);
+                } else {
+                    root.confirm-forget = true;
+                }
+            }
+        }
+    }
+}
+
+export component BtDeviceList inherits VerticalLayout {
+    spacing: 4px;
+    if Shell.bt-devices.length == 0: StyledText {
+        text: Shell.status.bluetooth ? @tr("No paired devices") : @tr("Bluetooth is off");
+        font-size: Theme.font-small;
+        color: Theme.c.outline;
+        horizontal-alignment: center;
+    }
+    for d in Shell.bt-devices: BtDeviceRow { device: d; }
+}

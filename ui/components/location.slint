@@ -1,0 +1,150 @@
+// Weather location picker: current location card, one-click detection and
+// live city search (results come from Rust as the user types).
+import { Theme } from "../theme.slint";
+import { Shell, Place } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer, TextButton, ButtonKind, StyledInput } from "base.slint";
+
+component PlaceRow inherits Rectangle {
+    in property <Place> place;
+    in property <int> index;
+    height: 48px;
+    border-radius: Theme.rounding-small;
+    background: Theme.layer(Theme.c.surface-container-high, 2);
+    StateLayer {
+        border-radius: parent.border-radius;
+        clicked => { Shell.action("place-select", root.index); }
+    }
+    HorizontalLayout {
+        padding-left: Theme.padding-normal;
+        padding-right: Theme.padding-normal;
+        spacing: Theme.spacing-normal;
+        Rectangle {
+            width: 32px;
+            height: 32px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 16px;
+            background: Theme.c.secondary-container;
+            StyledText {
+                text: root.place.country-code;
+                font-size: Theme.font-small;
+                font-weight: 700;
+                color: Theme.c.on-secondary-container;
+                horizontal-alignment: center;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            StyledText { text: root.place.name; font-size: Theme.font-normal; overflow: elide; }
+            StyledText { text: root.place.detail; font-size: Theme.font-small; color: Theme.c.on-surface-variant; overflow: elide; }
+        }
+        StyledText {
+            text: root.place.coords;
+            font-size: Theme.font-small;
+            font-family: Theme.t.font-mono;
+            color: Theme.c.outline;
+        }
+        MaterialIcon { text: "chevron_right"; color: Theme.c.outline; }
+    }
+}
+
+export component LocationPicker inherits VerticalLayout {
+    spacing: Theme.spacing-small;
+
+    // ---- current location ----
+    Rectangle {
+        height: 84px;
+        border-radius: Theme.rounding-normal;
+        background: Theme.layer(Theme.c.secondary-container, 2);
+        HorizontalLayout {
+            padding: Theme.padding-large;
+            spacing: Theme.spacing-larger;
+            Rectangle {
+                width: 48px;
+                height: 48px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 24px;
+                background: Theme.c.primary;
+                MaterialIcon { text: Shell.cfg.weather-location == "" ? "my_location" : "location_on"; fill: true; font-size: 26px; color: Theme.c.on-primary; }
+            }
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+                spacing: 2px;
+                StyledText {
+                    text: Shell.cfg.weather-location == "" ? @tr("Automatic")
+                        : Shell.cfg.weather-location-name != "" ? Shell.cfg.weather-location-name : Shell.cfg.weather-location;
+                    font-size: Theme.font-larger;
+                    color: Theme.c.on-secondary-container;
+                    overflow: elide;
+                }
+                StyledText {
+                    text: Shell.cfg.weather-location == "" ? @tr("Located by your internet connection (IP)") : Shell.cfg.weather-location;
+                    font-size: Theme.font-small;
+                    font-family: Shell.cfg.weather-location == "" ? Theme.t.font-sans : Theme.t.font-mono;
+                    color: Theme.c.on-secondary-container.with-alpha(0.75);
+                    overflow: elide;
+                }
+            }
+            if Shell.weather-status == "ok": VerticalLayout {
+                alignment: center;
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 4px;
+                    MaterialIcon { text: Shell.weather.icon; font-size: Theme.font-large; color: Theme.c.on-secondary-container; }
+                    StyledText { text: Shell.weather.temp; font-size: Theme.font-larger; color: Theme.c.on-secondary-container; }
+                }
+                StyledText { text: Shell.weather.description; font-size: Theme.font-small; color: Theme.c.on-secondary-container.with-alpha(0.75); horizontal-alignment: right; }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: Theme.spacing-small;
+        TextButton {
+            horizontal-stretch: 1;
+            icon: Shell.place-status == "detecting" ? "progress_activity" : "my_location";
+            text: Shell.place-status == "detecting" ? @tr("Detecting…") : @tr("Detect my location");
+            kind: ButtonKind.filled;
+            font-size: Theme.font-small;
+            clicked => { Shell.action("place-detect", ""); }
+        }
+        TextButton {
+            horizontal-stretch: 1;
+            icon: "public";
+            text: @tr("Automatic (IP)");
+            kind: Shell.cfg.weather-location == "" ? ButtonKind.tonal : ButtonKind.outlined;
+            font-size: Theme.font-small;
+            clicked => { Shell.action("place-auto", ""); }
+        }
+    }
+
+    // ---- search ----
+    search := StyledInput {
+        height: 40px;
+        icon: "search";
+        placeholder: @tr("Search a city, e.g. \"Madrid\" or \"San Rafael, Alajuela\"");
+        font-size: Theme.font-normal;
+        edited(t) => { Shell.action("place-search", t); }
+        accepted(t) => { Shell.action("place-select", 0); }
+    }
+    if Shell.place-status == "searching": StyledText {
+        text: @tr("Searching…");
+        font-size: Theme.font-small;
+        color: Theme.c.outline;
+        horizontal-alignment: center;
+    }
+    if Shell.place-status == "none": StyledText {
+        text: @tr("No places found — try another spelling or add the country.");
+        font-size: Theme.font-small;
+        color: Theme.c.outline;
+        horizontal-alignment: center;
+    }
+    if Shell.place-status == "error": StyledText {
+        text: @tr("Couldn't reach the location service. Check your connection.");
+        font-size: Theme.font-small;
+        color: Theme.c.error;
+        horizontal-alignment: center;
+    }
+    for p[i] in Shell.places: PlaceRow { place: p; index: i; }
+}

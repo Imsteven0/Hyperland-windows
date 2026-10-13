@@ -1,0 +1,901 @@
+// Floating customisation panel (screenshots 1 & 2). Every control writes back
+// to shell.json through `Shell.set-config(path, json)`; Rust persists the file
+// (keeping unknown keys intact) and the hot-reload loop restyles the shell.
+import { Theme } from "../theme.slint";
+import { Shell, InfoRow, UiConfig, SchemeCard, WallpaperEntry } from "../state.slint";
+import { AudioDeviceList, BtDeviceList } from "../components/devices.slint";
+import { LocationPicker } from "../components/location.slint";
+import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, StyledSwitch, StyledSlider, TextButton, StyledInput, Card, Separator, LinearProgress } from "../components/base.slint";
+
+export struct NavItem { icon: string, title: string, subtitle: string, group: int }
+
+// ---------------- building blocks ----------------
+
+component SectionLabel inherits StyledText {
+    font-size: Theme.font-smaller;
+    color: Theme.c.on-surface-variant;
+    height: 26px;
+    vertical-alignment: bottom;
+}
+
+// One row of a grouped list: title / subtitle on the left, control on the right.
+component SettingRow inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> first;
+    in property <bool> last;
+    min-height: root.subtitle == "" ? 40px : 48px;
+    border-top-left-radius: root.first ? Theme.rounding-normal : 4px;
+    border-top-right-radius: root.first ? Theme.rounding-normal : 4px;
+    border-bottom-left-radius: root.last ? Theme.rounding-normal : 4px;
+    border-bottom-right-radius: root.last ? Theme.rounding-normal : 4px;
+    background: Theme.layer(Theme.c.surface-container-high, 2);
+    HorizontalLayout {
+        padding-left: Theme.padding-larger;
+        padding-right: Theme.padding-normal;
+        spacing: Theme.spacing-normal;
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            StyledText { text: root.title; font-size: Theme.font-normal; }
+            if root.subtitle != "": StyledText { text: root.subtitle; font-size: Theme.font-small; color: Theme.c.outline; overflow: elide; }
+        }
+        HorizontalLayout {
+            alignment: end;
+            @children
+        }
+    }
+}
+
+component SwitchRow inherits SettingRow {
+    in property <bool> value;
+    in property <string> key;
+    sw := StyledSwitch {
+        y: (parent.height - self.height) / 2;
+        checked: root.value;
+        toggled(v) => { Shell.set-config(root.key, v ? "true" : "false"); }
+    }
+    changed value => { sw.checked = root.value; }
+}
+
+component SliderRow inherits SettingRow {
+    in property <float> value;
+    in property <float> minimum: 0;
+    in property <float> maximum: 1;
+    in property <float> step: 0.05;
+    in property <string> key;
+    in property <int> decimals: 2;
+    HorizontalLayout {
+        spacing: Theme.spacing-normal;
+        width: 230px;
+        sl := StyledSlider {
+            y: (parent.height - self.height) / 2;
+            horizontal-stretch: 1;
+            value: root.value;
+            minimum: root.minimum;
+            maximum: root.maximum;
+            step: root.step;
+            released(v) => { Shell.set-config(root.key, v); }
+        }
+        StyledText {
+            width: 40px;
+            text: root.decimals == 0 ? Math.round(sl.value) : Math.round(sl.value * 100) / 100;
+            font-family: Theme.t.font-mono;
+            font-size: Theme.font-small;
+            horizontal-alignment: right;
+            color: Theme.c.on-surface-variant;
+        }
+    }
+}
+
+component ActionRow inherits SettingRow {
+    in property <string> button;
+    in property <string> icon;
+    callback clicked();
+    TextButton {
+        y: (parent.height - self.height) / 2;
+        height: 32px;
+        icon: root.icon;
+        text: root.button;
+        font-size: Theme.font-small;
+        clicked => { root.clicked(); }
+    }
+}
+
+component InfoTable inherits VerticalLayout {
+    in property <[InfoRow]> rows;
+    spacing: 2px;
+    for r[i] in root.rows: SettingRow {
+        title: r.label;
+        first: i == 0;
+        last: i == root.rows.length - 1;
+        min-height: 30px;
+        StyledText {
+            text: r.value;
+            font-size: Theme.font-small;
+            color: Theme.c.on-surface-variant;
+            horizontal-alignment: right;
+        }
+    }
+}
+
+component Chip inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked();
+    height: 32px;
+    min-width: label.preferred-width + 28px;
+    border-radius: Theme.rounding-small;
+    background: root.selected ? Theme.c.secondary-container : transparent;
+    border-width: root.selected ? 0 : 1px;
+    border-color: Theme.c.outline-variant;
+    animate background { duration: Theme.anim-small; }
+    StateLayer { border-radius: parent.border-radius; clicked => { root.clicked(); } }
+    HorizontalLayout {
+        alignment: center;
+        spacing: 4px;
+        if root.selected: MaterialIcon { text: "check"; font-size: Theme.font-normal; color: Theme.c.on-secondary-container; }
+        label := StyledText {
+            text: root.text;
+            font-size: Theme.font-small;
+            color: root.selected ? Theme.c.on-secondary-container : Theme.c.on-surface-variant;
+        }
+    }
+}
+
+component Swatch inherits Rectangle {
+    in property <color> swatch;
+    in property <string> name;
+    height: 44px;
+    border-radius: Theme.rounding-small;
+    background: root.swatch;
+    StyledText {
+        text: root.name;
+        font-size: Theme.font-small;
+        color: root.swatch.to-hsv().value > 0.6 ? #000000c0 : #ffffffd0;
+    }
+}
+
+// ---------------- pages ----------------
+
+component SegmentButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> text;
+    in property <bool> active;
+    callback clicked();
+    height: 38px;
+    min-width: row.preferred-width + 32px;
+    border-radius: root.active ? Theme.rounding-normal : self.height / 2;
+    background: root.active ? Theme.c.primary : Theme.layer(Theme.c.secondary-container, 2);
+    animate background, border-radius { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+    StateLayer { border-radius: parent.border-radius; tint: root.active ? Theme.c.on-primary : Theme.c.on-secondary-container; clicked => { root.clicked(); } }
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: 6px;
+        MaterialIcon { text: root.icon; fill: root.active; color: root.active ? Theme.c.on-primary : Theme.c.on-secondary-container; }
+        StyledText { text: root.text; color: root.active ? Theme.c.on-primary : Theme.c.on-secondary-container; }
+    }
+}
+
+// Preview card of a colour scheme: background with three accent dots.
+component SchemeCardView inherits Rectangle {
+    in property <SchemeCard> card;
+    callback clicked();
+    height: 74px;
+    border-radius: Theme.rounding-normal;
+    background: root.card.bg;
+    border-width: root.card.current ? 3px : 1px;
+    border-color: root.card.current ? Theme.c.primary : Theme.c.outline-variant.with-alpha(0.6);
+    animate border-color { duration: Theme.anim-small; }
+    scale-on-hover := Rectangle {
+        HorizontalLayout {
+            padding: Theme.padding-normal;
+            spacing: Theme.spacing-small;
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+                spacing: 2px;
+                StyledText { text: root.card.label; color: root.card.fg; font-size: Theme.font-smaller; overflow: elide; }
+                StyledText { text: root.card.dark ? @tr("Dark") : @tr("Light"); color: root.card.fg.with-alpha(0.6); font-size: Theme.font-small; }
+            }
+            for c in [root.card.c1, root.card.c2, root.card.c3]: Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                background: c;
+            }
+        }
+    }
+    if root.card.current: Rectangle {
+        x: parent.width - self.width - 6px;
+        y: 6px;
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        background: Theme.c.primary;
+        MaterialIcon { text: "check"; font-size: 13px; color: Theme.c.on-primary; }
+    }
+    StateLayer { border-radius: parent.border-radius; tint: root.card.fg; clicked => { root.clicked(); } }
+}
+
+component OpacityPreset inherits Rectangle {
+    in property <string> label;
+    in property <float> base;
+    in property <bool> current;
+    callback clicked();
+    height: 86px;
+    border-radius: Theme.rounding-normal;
+    background: Theme.layer(Theme.c.surface-container-high, 2);
+    border-width: root.current ? 3px : 0;
+    border-color: Theme.c.primary;
+    clip: true;
+    // Miniature: a "wallpaper" gradient under a panel at the preset opacity.
+    Rectangle {
+        x: 8px; y: 8px;
+        width: parent.width - 16px;
+        height: 46px;
+        border-radius: Theme.rounding-small;
+        background: @linear-gradient(135deg, Theme.c.primary 0%, Theme.c.tertiary 100%);
+        Rectangle {
+            x: 10px; y: 10px;
+            width: parent.width - 20px;
+            height: parent.height - 20px;
+            border-radius: 6px;
+            background: Theme.c.surface.with-alpha(root.base);
+        }
+    }
+    StyledText { y: parent.height - 26px; height: 20px; text: root.label; font-size: Theme.font-small; horizontal-alignment: center; }
+    StateLayer { border-radius: parent.border-radius; clicked => { root.clicked(); } }
+}
+
+component WallpaperPage inherits VerticalLayout {
+    in property <image> preview;
+    in property <bool> has-preview;
+    in property <[SchemeCard]> schemes;
+    in property <[WallpaperEntry]> wallpapers;
+    // All images in the folder; `wallpapers` is the page loaded so far.
+    in property <int> total;
+    in property <string> wallpaper-dir;
+    in-out property <int> view;
+    spacing: Theme.spacing-normal;
+
+    HorizontalLayout {
+        alignment: center;
+        Rectangle {
+            width: 300px;
+            height: 168px;
+            border-radius: Theme.rounding-normal;
+            background: Theme.c.surface-container-highest;
+            clip: true;
+            if root.has-preview: Image { width: 100%; height: 100%; source: root.preview; image-fit: cover; }
+            if !root.has-preview: MaterialIcon { text: "wallpaper"; font-size: 48px; color: Theme.c.outline; }
+        }
+    }
+    HorizontalLayout {
+        alignment: center;
+        spacing: Theme.spacing-small;
+        SegmentButton { icon: "image"; text: @tr("Wallpapers"); active: root.view == 0; clicked => { root.view = 0; } }
+        SegmentButton { icon: "palette"; text: @tr("Colours"); active: root.view == 1; clicked => { root.view = 1; } }
+        SegmentButton { icon: "opacity"; text: @tr("Opacity"); active: root.view == 2; clicked => { root.view = 2; } }
+    }
+
+    // ---------------- wallpapers ----------------
+    if root.view == 0: VerticalLayout {
+        spacing: Theme.spacing-small;
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            SectionLabel { text: @tr("{0} wallpapers · {1}", root.total, root.wallpaper-dir); horizontal-stretch: 1; overflow: elide; }
+            TextButton { height: 30px; icon: "shuffle"; text: @tr("Random"); font-size: Theme.font-small; clicked => { Shell.action("random-wallpaper", ""); } }
+            TextButton { height: 30px; icon: "folder_open"; text: @tr("Folder"); kind: ButtonKind.outlined; font-size: Theme.font-small; clicked => { Shell.action("choose-wallpaper-dir", ""); } }
+        }
+        // Download a GitHub repository's images into the wallpaper folder.
+        dlcard := Rectangle {
+            property <bool> busy: Shell.wallpaper-dl-state == "indexing" || Shell.wallpaper-dl-state == "running";
+            border-radius: Theme.rounding-normal;
+            background: Theme.layer(Theme.c.surface-container-high, 2);
+            height: dlcol.preferred-height;
+            dlcol := VerticalLayout {
+                padding: Theme.padding-normal;
+                padding-left: Theme.padding-larger;
+                spacing: Theme.spacing-small;
+                HorizontalLayout {
+                    spacing: Theme.spacing-normal;
+                    MaterialIcon { text: "cloud_download"; font-size: Theme.font-larger; color: Theme.c.primary; }
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        StyledText { text: @tr("Download from GitHub"); font-size: Theme.font-normal; }
+                        StyledText {
+                            text: Shell.wallpaper-dl-text != "" ? Shell.wallpaper-dl-text : @tr("Images from a repository, saved in your wallpaper folder");
+                            font-size: Theme.font-small;
+                            color: Shell.wallpaper-dl-state == "error" ? Theme.c.error : Theme.c.outline;
+                            overflow: elide;
+                        }
+                    }
+                    TextButton {
+                        y: (parent.height - self.height) / 2;
+                        height: 32px;
+                        icon: dlcard.busy ? "close" : "download";
+                        text: dlcard.busy ? @tr("Cancel") : @tr("Fetch");
+                        kind: dlcard.busy ? ButtonKind.outlined : ButtonKind.tonal;
+                        font-size: Theme.font-small;
+                        clicked => {
+                            if dlcard.busy { Shell.action("wallpaper-download-cancel", ""); } else { Shell.action("wallpaper-download", repo.text); }
+                        }
+                    }
+                }
+                repo := StyledInput {
+                    height: 40px;
+                    icon: "link";
+                    placeholder: "https://github.com/usuario/repositorio";
+                    text: Shell.cfg.wallpaper-repo;
+                    font-size: Theme.font-normal;
+                    accepted(t) => { Shell.action("wallpaper-download", t); }
+                }
+                if dlcard.busy: LinearProgress { value: Shell.wallpaper-dl-progress; }
+            }
+        }
+        Rectangle {
+            property <int> cols: 4;
+            property <length> gap: 8px;
+            property <length> cell-w: (self.width - self.gap * (self.cols - 1)) / self.cols;
+            property <length> cell-h: self.cell-w * 9 / 16;
+            height: Math.ceil(root.wallpapers.length / self.cols) * (self.cell-h + self.gap);
+            for wp[i] in root.wallpapers: Rectangle {
+                x: Math.mod(i, parent.cols) * (parent.cell-w + parent.gap);
+                y: Math.floor(i / parent.cols) * (parent.cell-h + parent.gap);
+                width: parent.cell-w;
+                height: parent.cell-h;
+                border-radius: Theme.rounding-small;
+                background: Theme.c.surface-container-highest;
+                border-width: wp.current ? 3px : 0;
+                border-color: Theme.c.primary;
+                clip: true;
+                Image { width: 100%; height: 100%; source: wp.thumb; image-fit: cover; opacity: ta.has-hover ? 0.85 : 1; animate opacity { duration: Theme.anim-small; } }
+                if wp.current: Rectangle {
+                    x: parent.width - self.width - 6px; y: 6px; width: 20px; height: 20px; border-radius: 10px; background: Theme.c.primary;
+                    MaterialIcon { text: "check"; font-size: 14px; color: Theme.c.on-primary; }
+                }
+                ta := TouchArea { mouse-cursor: pointer; clicked => { Shell.action("set-wallpaper", wp.path); } }
+            }
+        }
+        if root.wallpapers.length < root.total: HorizontalLayout {
+            alignment: center;
+            TextButton {
+                height: 34px;
+                icon: "expand_more";
+                text: @tr("Show more ({0} left)", root.total - root.wallpapers.length);
+                kind: ButtonKind.outlined;
+                font-size: Theme.font-small;
+                clicked => { Shell.action("wallpapers-more", ""); }
+            }
+        }
+        if root.wallpapers.length == 0: StyledText {
+            text: @tr("No images found. Pick a folder with wallpapers (jpg, png, webp).");
+            color: Theme.c.outline;
+            horizontal-alignment: center;
+        }
+        VerticalLayout {
+            spacing: 2px;
+            SwitchRow { first: true; title: @tr("Display wallpaper"); subtitle: @tr("Let the shell manage the desktop wallpaper"); key: "background.enabled"; value: Shell.cfg.wallpaper-enabled; }
+            SwitchRow { last: true; title: @tr("Smart scheme"); subtitle: @tr("Pick light/dark from the wallpaper's brightness"); key: "services.smartScheme"; value: Shell.cfg.smart-scheme; }
+        }
+    }
+
+    // ---------------- colours ----------------
+    if root.view == 1: VerticalLayout {
+        spacing: Theme.spacing-small;
+        VerticalLayout {
+            spacing: 2px;
+            SwitchRow { first: true; last: true; title: @tr("Dark theme"); key: "services.scheme.dark"; value: Shell.cfg.scheme-mode == "dark"; }
+        }
+        SectionLabel { text: @tr("Colour scheme"); }
+        Rectangle {
+            property <int> cols: 3;
+            property <length> gap: 8px;
+            property <length> cell-w: (self.width - self.gap * (self.cols - 1)) / self.cols;
+            height: Math.ceil(root.schemes.length / self.cols) * (74px + self.gap);
+            for sc[i] in root.schemes: SchemeCardView {
+                x: Math.mod(i, parent.cols) * (parent.cell-w + parent.gap);
+                y: Math.floor(i / parent.cols) * (74px + parent.gap);
+                width: parent.cell-w;
+                card: sc;
+                clicked => { Shell.action("set-scheme", sc.id); }
+            }
+        }
+        if Shell.cfg.scheme-name == "dynamic": SectionLabel { text: @tr("Dynamic variant"); }
+        if Shell.cfg.scheme-name == "dynamic": HorizontalLayout {
+            spacing: Theme.spacing-small;
+            for v in ["tonalspot", "vibrant", "expressive", "fidelity", "content"]: Chip {
+                text: v;
+                selected: Shell.cfg.scheme-variant == v;
+                clicked => { Shell.set-config("services.scheme.variant", "\"" + v + "\""); }
+            }
+        }
+        if Shell.cfg.scheme-name == "dynamic": HorizontalLayout {
+            spacing: Theme.spacing-small;
+            for v in ["fruitsalad", "rainbow", "neutral", "monochrome"]: Chip {
+                text: v;
+                selected: Shell.cfg.scheme-variant == v;
+                clicked => { Shell.set-config("services.scheme.variant", "\"" + v + "\""); }
+            }
+        }
+        SectionLabel { text: @tr("Palette"); }
+        VerticalLayout {
+            spacing: 4px;
+            HorizontalLayout { spacing: 4px;
+                Swatch { swatch: Theme.c.primary; name: "primary"; }
+                Swatch { swatch: Theme.c.secondary; name: "secondary"; }
+                Swatch { swatch: Theme.c.tertiary; name: "tertiary"; }
+                Swatch { swatch: Theme.c.error; name: "error"; }
+            }
+            HorizontalLayout { spacing: 4px;
+                Swatch { swatch: Theme.c.primary-container; name: "primaryContainer"; }
+                Swatch { swatch: Theme.c.secondary-container; name: "secondaryContainer"; }
+                Swatch { swatch: Theme.c.surface-container-highest; name: "highest"; }
+                Swatch { swatch: Theme.c.outline; name: "outline"; }
+            }
+        }
+        SectionLabel { text: @tr("Shape & type"); }
+        VerticalLayout {
+            spacing: 2px;
+            SliderRow { first: true; title: @tr("Rounding scale"); key: "appearance.rounding.scale"; value: Shell.cfg.rounding-scale; minimum: 0; maximum: 2; step: 0.05; }
+            SliderRow { title: @tr("Font size scale"); key: "appearance.font.size.scale"; value: Shell.cfg.font-scale; minimum: 0.7; maximum: 1.5; step: 0.05; }
+            SliderRow { last: true; title: @tr("Animation speed"); subtitle: @tr("Duration scale (lower is faster)"); key: "appearance.anim.durations.scale"; value: Shell.cfg.anim-scale; minimum: 0.2; maximum: 2; step: 0.1; }
+        }
+    }
+
+    // ---------------- opacity ----------------
+    if root.view == 2: VerticalLayout {
+        spacing: Theme.spacing-small;
+        SectionLabel { text: @tr("Opacity theme"); }
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            for o in [
+                { id: "solid", label: @tr("Solid"), base: 1.0 },
+                { id: "subtle", label: @tr("Subtle"), base: 0.92 },
+                { id: "translucent", label: @tr("Translucent"), base: 0.8 },
+                { id: "glass", label: @tr("Glass"), base: 0.6 },
+                { id: "clear", label: @tr("Clear"), base: 0.4 },
+            ]: OpacityPreset {
+                horizontal-stretch: 1;
+                label: o.label;
+                base: o.base;
+                current: o.id == "solid" ? !Shell.cfg.transparency : Shell.cfg.transparency && Math.abs(Shell.cfg.base-alpha - o.base) < 0.02;
+                clicked => { Shell.action("opacity-preset", o.id); }
+            }
+        }
+        VerticalLayout {
+            spacing: 2px;
+            SwitchRow {
+                first: true;
+                title: @tr("Transparency");
+                subtitle: @tr("Base {0}, layers {1}", Math.round(Shell.cfg.base-alpha * 100) / 100, Math.round(Shell.cfg.layer-alpha * 100) / 100);
+                key: "appearance.transparency.enabled";
+                value: Shell.cfg.transparency;
+            }
+            SliderRow { title: @tr("Base opacity"); subtitle: @tr("Panels, bar and frame"); key: "appearance.transparency.base"; value: Shell.cfg.base-alpha; minimum: 0.1; maximum: 1; }
+            SliderRow { title: @tr("Layer opacity"); subtitle: @tr("Cards and controls on top"); key: "appearance.transparency.layers"; value: Shell.cfg.layer-alpha; minimum: 0.1; maximum: 1; }
+            SwitchRow { last: true; title: @tr("Blur behind"); subtitle: @tr("Acrylic/blur under translucent surfaces"); key: "windows.blur"; value: Shell.cfg.blur; }
+        }
+    }
+}
+
+component NetworkPage inherits VerticalLayout {
+    spacing: 2px;
+    SwitchRow { first: true; title: @tr("Wi-Fi"); subtitle: Shell.status.network-name != "" ? @tr("Connected to {}", Shell.status.network-name) : @tr("Not connected"); key: "@wifi"; value: Shell.status.wifi; }
+    SettingRow { title: @tr("Internet"); subtitle: Shell.status.online ? @tr("Online") : @tr("Offline"); MaterialIcon { text: Shell.status.online ? "public" : "public_off"; color: Theme.c.primary; } }
+    ActionRow { title: @tr("Wi-Fi networks"); icon: "open_in_new"; button: @tr("Open"); clicked => { Shell.action("open-uri", "ms-settings:network-wifi"); } }
+    ActionRow { last: true; title: @tr("Ethernet & VPN"); icon: "open_in_new"; button: @tr("Open"); clicked => { Shell.action("open-uri", "ms-settings:network-status"); } }
+}
+
+component DevicesPage inherits VerticalLayout {
+    spacing: 2px;
+    SwitchRow { first: true; last: true; title: @tr("Bluetooth"); subtitle: Shell.status.bluetooth-available ? (Shell.status.bluetooth ? @tr("On") : @tr("Off")) : @tr("No adapter found"); key: "@bluetooth"; value: Shell.status.bluetooth; }
+    SectionLabel { text: @tr("Paired devices"); }
+    BtDeviceList { }
+    SectionLabel { text: ""; height: 8px; }
+    ActionRow { first: true; title: @tr("Pair a new device"); subtitle: @tr("Opens Windows' pairing flow (PIN / confirmation)"); icon: "add"; button: @tr("Pair"); clicked => { Shell.action("open-uri", "ms-settings:bluetooth"); } }
+    ActionRow { last: true; title: @tr("Printers & scanners"); icon: "open_in_new"; button: @tr("Open"); clicked => { Shell.action("open-uri", "ms-settings:printers"); } }
+}
+
+component AudioPage inherits VerticalLayout {
+    spacing: 2px;
+    SettingRow {
+        first: true;
+        title: @tr("Output volume");
+        subtitle: Shell.status.muted ? @tr("Muted") : Math.round(Shell.status.volume * 100) + "%";
+        StyledSlider {
+            width: 220px;
+            y: (parent.height - self.height) / 2;
+            value: Shell.status.volume;
+            icon: "volume_up";
+            changed(v) => { Shell.action("volume-set", v); }
+        }
+    }
+    SwitchRow { last: true; title: @tr("Mute output"); key: "@mute"; value: Shell.status.muted; }
+    SectionLabel { text: @tr("Output device"); }
+    AudioDeviceList { devices: Shell.audio-outputs; icon: "headphones"; }
+    SectionLabel { text: @tr("Microphone"); }
+    SettingRow {
+        first: true;
+        title: @tr("Input volume");
+        subtitle: Shell.status.mic-muted ? @tr("Muted") : Math.round(Shell.status.mic-volume * 100) + "%";
+        StyledSlider {
+            width: 220px;
+            y: (parent.height - self.height) / 2;
+            value: Shell.status.mic-volume;
+            icon: "mic";
+            changed(v) => { Shell.action("mic-volume-set", v); }
+        }
+    }
+    SwitchRow { last: true; title: @tr("Mute microphone"); key: "@mic-mute"; value: Shell.status.mic-muted; }
+    SectionLabel { text: @tr("Input device"); }
+    AudioDeviceList { devices: Shell.audio-inputs; icon: "mic"; }
+    SectionLabel { text: ""; height: 8px; }
+    ActionRow { first: true; last: true; title: @tr("Advanced sound settings"); icon: "open_in_new"; button: @tr("Open"); clicked => { Shell.action("open-uri", "ms-settings:sound"); } }
+}
+
+component UpdatesPage inherits VerticalLayout {
+    spacing: 2px;
+    ActionRow { first: true; title: @tr("Windows Update"); subtitle: @tr("Check for system updates"); icon: "update"; button: @tr("Check"); clicked => { Shell.action("open-uri", "ms-settings:windowsupdate"); } }
+    ActionRow { last: true; title: @tr("Upgrade packages"); subtitle: @tr("Runs `winget upgrade --all` in a terminal"); icon: "terminal"; button: @tr("Run"); clicked => { Shell.action("winget-upgrade", ""); } }
+}
+
+component PluginsPage inherits VerticalLayout {
+    spacing: 2px;
+    SettingRow { first: true; title: @tr("Installed plugins"); subtitle: @tr("Drop plugin folders into the dots `plugins` directory"); StyledText { text: "0"; color: Theme.c.outline; } }
+    ActionRow { last: true; title: @tr("Plugins folder"); icon: "folder_open"; button: @tr("Open"); clicked => { Shell.action("open-config-dir", "plugins"); } }
+}
+
+component TilingSection inherits VerticalLayout {
+    spacing: 2px;
+    SectionLabel { text: @tr("Tiling · komorebi"); }
+    SettingRow {
+        first: true;
+        title: "komorebi";
+        subtitle: Shell.komorebi-status == "running" ? @tr("Running · tiling managed by komorebi, UI by Caelestia")
+            : Shell.komorebi-status == "paused" ? @tr("Paused (Alt+P to resume)")
+            : Shell.komorebi-status == "stopped" ? @tr("Installed, not running")
+            : @tr("Not installed");
+        Rectangle {
+            width: 10px;
+            height: 10px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 5px;
+            background: Shell.komorebi-status == "running" ? Theme.c.success : Shell.komorebi-status == "not-installed" ? Theme.c.error : Theme.c.outline;
+        }
+    }
+    if Shell.komorebi-status == "not-installed": ActionRow {
+        title: @tr("Install komorebi");
+        subtitle: @tr("winget install LGUG2Z.komorebi (free for personal use)");
+        icon: "download";
+        button: @tr("Install");
+        clicked => { Shell.action("komorebi-install", ""); }
+    }
+    SwitchRow { title: @tr("Use komorebi for tiling"); subtitle: @tr("Workspaces in the bar follow komorebi; its bar and whkd are never started"); key: "windows.komorebi.enabled"; value: Shell.cfg.komorebi-enabled; }
+    SwitchRow { title: @tr("Start komorebi with the shell"); key: "windows.komorebi.autostart"; value: Shell.cfg.komorebi-autostart; }
+    SwitchRow { title: @tr("Themed window borders"); subtitle: @tr("komorebi borders use the colour scheme"); key: "windows.komorebi.borders"; value: Shell.cfg.komorebi-borders; }
+    SliderRow { title: @tr("Border width"); key: "windows.komorebi.borderWidth"; value: Shell.cfg.komorebi-border-width; minimum: 1; maximum: 10; step: 1; decimals: 0; }
+    SliderRow { title: @tr("Gaps between windows"); key: "windows.komorebi.containerPadding"; value: Shell.cfg.komorebi-gap-inner; minimum: 0; maximum: 40; step: 1; decimals: 0; }
+    SliderRow { title: @tr("Gaps to the frame"); key: "windows.komorebi.workspacePadding"; value: Shell.cfg.komorebi-gap-outer; minimum: 0; maximum: 40; step: 1; decimals: 0; }
+    SwitchRow { title: @tr("Window animations"); subtitle: @tr("komorebi movement animations, timed by the shell's animation speed"); key: "windows.komorebi.animations"; value: Shell.cfg.komorebi-animations; }
+    SettingRow {
+        last: true;
+        title: "komorebi";
+        subtitle: @tr("Alt+H/J/K/L focus · Alt+Shift+H/J/K/L move · Alt+1..8 workspaces");
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            TextButton { y: (parent.height - self.height) / 2; height: 30px; icon: Shell.komorebi-status == "running" ? "stop" : "play_arrow"; text: Shell.komorebi-status == "running" ? @tr("Stop") : @tr("Start"); font-size: Theme.font-small; clicked => { Shell.action(Shell.komorebi-status == "running" ? "komorebi-stop" : "komorebi-start", ""); } }
+            TextButton { y: (parent.height - self.height) / 2; height: 30px; icon: "folder_open"; text: @tr("Config"); kind: ButtonKind.outlined; font-size: Theme.font-small; clicked => { Shell.action("komorebi-config", ""); } }
+        }
+    }
+}
+
+component PanelsPage inherits VerticalLayout {
+    spacing: 2px;
+    SectionLabel { text: @tr("Bar"); }
+    SwitchRow { first: true; title: @tr("Reserve screen space"); subtitle: @tr("Maximised windows stay clear of the bar"); key: "bar.persistent"; value: Shell.cfg.bar-persistent; }
+    SwitchRow { title: @tr("Workspaces"); key: "bar.workspaces.enabled"; value: Shell.cfg.bar-show-workspaces; }
+    SliderRow { title: @tr("Workspaces shown"); key: "bar.workspaces.shown"; value: Shell.cfg.bar-workspaces-shown; minimum: 1; maximum: 10; step: 1; decimals: 0; }
+    SwitchRow { title: @tr("Active window"); key: "bar.activeWindow.enabled"; value: Shell.cfg.bar-show-active-window; }
+    SwitchRow { title: @tr("Clock"); key: "bar.clock.enabled"; value: Shell.cfg.bar-show-clock; }
+    SwitchRow { title: @tr("Status icons"); key: "bar.status.enabled"; value: Shell.cfg.bar-show-status; }
+    SwitchRow { last: true; title: @tr("Power button"); key: "bar.power.enabled"; value: Shell.cfg.bar-show-power; }
+    SectionLabel { text: @tr("Border"); }
+    SliderRow { first: true; title: @tr("Thickness"); key: "border.thickness"; value: Shell.cfg.border-thickness; minimum: 0; maximum: 30; step: 1; decimals: 0; }
+    SliderRow { last: true; title: @tr("Rounding"); key: "border.rounding"; value: Shell.cfg.border-rounding; minimum: 0; maximum: 50; step: 1; decimals: 0; }
+    SectionLabel { text: @tr("Dashboard & launcher"); }
+    SwitchRow { first: true; title: @tr("Dashboard"); key: "dashboard.enabled"; value: Shell.cfg.dashboard-enabled; }
+    SwitchRow { title: @tr("Open dashboard on hover"); subtitle: @tr("Hover the top edge of the screen"); key: "dashboard.showOnHover"; value: Shell.cfg.dashboard-show-on-hover; }
+    SliderRow { title: @tr("Launcher results"); key: "launcher.maxShown"; value: Shell.cfg.launcher-max-shown; minimum: 3; maximum: 12; step: 1; decimals: 0; }
+    SettingRow {
+        last: true;
+        title: @tr("Open launcher with the Windows key");
+        subtitle: @tr("Like Caelestia's Super. Off: Alt+Space");
+        sw := StyledSwitch {
+            y: (parent.height - self.height) / 2;
+            checked: Shell.cfg.super-launcher;
+            toggled(v) => { Shell.set-config("windows.shortcuts.launcher", v ? "\"Super\"" : "\"Alt+Space\""); }
+        }
+    }
+    SectionLabel { text: @tr("Startup"); }
+    SwitchRow { first: true; last: true; title: @tr("Start with Windows"); subtitle: @tr("Open Caelestia when you sign in"); key: "windows.autostart"; value: Shell.cfg.autostart; }
+    TilingSection { }
+}
+
+component ServicesPage inherits VerticalLayout {
+    spacing: 2px;
+    SectionLabel { text: @tr("Weather location"); }
+    LocationPicker { }
+    SectionLabel { text: @tr("Units & format"); }
+    SwitchRow { first: true; title: @tr("Use Fahrenheit"); key: "services.useFahrenheit"; value: Shell.cfg.use-fahrenheit; }
+    SwitchRow { last: true; title: @tr("12-hour clock"); key: "services.useTwelveHourClock"; value: Shell.cfg.clock-12h; }
+}
+
+component LanguagePage inherits VerticalLayout {
+    spacing: Theme.spacing-small;
+    SectionLabel { text: @tr("UI language"); }
+    HorizontalLayout {
+        spacing: Theme.spacing-small;
+        alignment: start;
+        for l in [{ id: "auto", name: @tr("Automatic") }, { id: "en", name: "English" }, { id: "es", name: "Español" }]: Chip {
+            text: l.name;
+            selected: Shell.cfg.language == l.id;
+            clicked => { Shell.set-config("general.language", "\"" + l.id + "\""); }
+        }
+    }
+    SectionLabel { text: @tr("Region"); }
+    VerticalLayout {
+        spacing: 2px;
+        ActionRow {
+            first: true;
+            title: @tr("Weather location");
+            subtitle: Shell.cfg.weather-location == "" ? @tr("Automatic (IP)") : Shell.cfg.weather-location-name != "" ? Shell.cfg.weather-location-name : Shell.cfg.weather-location;
+            icon: "location_on";
+            button: @tr("Change");
+            clicked => { Shell.action("settings-page", "7"); }
+        }
+        SwitchRow { title: @tr("12-hour clock"); key: "services.useTwelveHourClock"; value: Shell.cfg.clock-12h; }
+        SwitchRow { last: true; title: @tr("Imperial units"); subtitle: @tr("Fahrenheit for weather"); key: "services.useFahrenheit"; value: Shell.cfg.use-fahrenheit; }
+    }
+}
+
+component AboutPage inherits VerticalLayout {
+    in property <[InfoRow]> system;
+    in property <[InfoRow]> software;
+    in property <string> version;
+    spacing: Theme.spacing-small;
+
+    Rectangle {
+        height: 150px;
+        border-radius: Theme.rounding-large;
+        background: Theme.layer(Theme.c.surface-container-high, 2);
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            MaterialIcon { text: "auto_awesome"; font-size: 54px; color: Theme.c.primary; fill: true; }
+            StyledText { text: @tr("Caelestia"); font-size: 30px; horizontal-alignment: center; font-weight: 500; }
+            StyledText { text: "v" + root.version + " · Windows"; font-size: Theme.font-small; color: Theme.c.outline; horizontal-alignment: center; }
+        }
+    }
+    SectionLabel { text: @tr("System"); }
+    InfoTable { rows: root.system; }
+    SectionLabel { text: @tr("Software"); }
+    InfoTable { rows: root.software; }
+    SectionLabel { text: @tr("Credits"); }
+    VerticalLayout {
+        spacing: 2px;
+        ActionRow {
+            first: true;
+            title: @tr("Created by Steven Araya Gonzalez");
+            subtitle: "github.com/Imsteven0";
+            icon: "open_in_new";
+            button: "GitHub";
+            clicked => { Shell.action("open-uri", "https://github.com/Imsteven0"); }
+        }
+        ActionRow {
+            last: true;
+            title: @tr("Based on Caelestia");
+            subtitle: @tr("The original Hyprland shell by the caelestia-dots project");
+            icon: "open_in_new";
+            button: "GitHub";
+            clicked => { Shell.action("open-uri", "https://github.com/caelestia-dots/shell"); }
+        }
+    }
+    SectionLabel { text: @tr("Dots"); }
+    VerticalLayout {
+        spacing: 2px;
+        SettingRow { first: true; title: @tr("Config file"); subtitle: Shell.cfg.config-path; }
+        ActionRow { title: @tr("Open config folder"); icon: "folder_open"; button: @tr("Open"); clicked => { Shell.action("open-config-dir", ""); } }
+        ActionRow { title: @tr("Reload configuration"); icon: "refresh"; button: @tr("Reload"); clicked => { Shell.action("reload-config", ""); } }
+        ActionRow { title: @tr("Export dots"); subtitle: @tr("shell.json + scheme.json as a shareable folder"); icon: "upload"; button: @tr("Export"); clicked => { Shell.action("dots-export", ""); } }
+        ActionRow { last: true; title: @tr("Import dots"); subtitle: @tr("Apply someone else's shell.json"); icon: "download"; button: @tr("Import"); clicked => { Shell.action("dots-import", ""); } }
+    }
+}
+
+// ---------------- window ----------------
+
+export component SettingsWindow inherits Window {
+    title: @tr("Caelestia Settings");
+    no-frame: true;
+    always-on-top: false;
+    background: transparent;
+    width: 885px;
+    height: 625px;
+
+    in-out property <int> page: 0;
+    in property <[bool]> nav-match;          // empty = everything matches
+    in property <image> wallpaper-preview;
+    in property <bool> has-wallpaper-preview;
+    in property <[InfoRow]> about-system;
+    in property <[InfoRow]> about-software;
+    in property <string> version;
+    in-out property <int> style-view;
+    // Driven by Rust: true right after show(), false before hide().
+    in-out property <bool> shown;
+    in property <[SchemeCard]> schemes;
+    in property <[WallpaperEntry]> wallpapers;
+    in property <int> wallpapers-total;
+    in property <string> wallpaper-dir;
+    callback search(string);
+    callback close-requested();
+    callback drag();
+
+    property <[NavItem]> nav: [
+        { icon: "palette", title: @tr("Wallpaper & style"), subtitle: @tr("Wallpaper, fonts, colours"), group: 0 },
+        { icon: "wifi", title: @tr("Network"), subtitle: @tr("Wi-Fi, ethernet"), group: 1 },
+        { icon: "devices_other", title: @tr("Connected devices"), subtitle: @tr("Bluetooth, pairing"), group: 1 },
+        { icon: "volume_up", title: @tr("Audio"), subtitle: @tr("App volumes, sound devices"), group: 1 },
+        { icon: "update", title: @tr("Updates"), subtitle: @tr("System updates"), group: 2 },
+        { icon: "extension", title: @tr("Plugins"), subtitle: @tr("Manage plugins"), group: 2 },
+        { icon: "dock_to_left", title: @tr("Panels"), subtitle: @tr("Dashboard, taskbar, launcher, sidebar"), group: 3 },
+        { icon: "build", title: @tr("Services"), subtitle: @tr("Weather location, units, clock"), group: 3 },
+        { icon: "language", title: @tr("Language & region"), subtitle: @tr("UI language, weather location, display units"), group: 3 },
+        { icon: "info", title: @tr("About"), subtitle: @tr("System information, credits"), group: 4 },
+    ];
+
+    Rectangle {
+        opacity: root.shown ? 1 : 0;
+        transform-scale: root.shown ? 1 : 0.94;
+        animate opacity { duration: Theme.anim-small; easing: cubic-bezier(0.2, 0, 0, 1); }
+        animate transform-scale { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+        border-radius: Theme.rounding-large;
+        background: Theme.base;
+        border-width: 1px;
+        border-color: Theme.c.outline-variant.with-alpha(0.35);
+        clip: true;
+
+        HorizontalLayout {
+            padding: Theme.padding-normal;
+            spacing: Theme.spacing-normal;
+
+            // ---------- navigation ----------
+            VerticalLayout {
+                width: 295px;
+                spacing: Theme.spacing-small;
+                StyledInput {
+                    placeholder: @tr("Search settings");
+                    font-size: Theme.font-normal;
+                    edited(t) => { root.search(t); }
+                }
+                Flickable {
+                    vertical-stretch: 1;
+                    content-height: navcol.preferred-height;
+                    navcol := VerticalLayout {
+                        spacing: 2px;
+                        for item[i] in root.nav: entry := Rectangle {
+                            property <bool> matches: root.nav-match.length == 0 || root.nav-match[i];
+                            property <bool> group-start: i == 0 || root.nav[i - 1].group != item.group;
+                            property <bool> group-end: i == root.nav.length - 1 || root.nav[i + 1].group != item.group;
+                            property <bool> active: root.page == i;
+                            visible: self.matches;
+                            height: self.matches ? 50px + (self.group-start && i > 0 ? Theme.spacing-small : 0) : 0;
+
+                            Rectangle {
+                                y: parent.height - self.height;
+                                height: 50px;
+                                border-top-left-radius: parent.group-start || parent.active ? Theme.rounding-normal : 4px;
+                                border-top-right-radius: parent.group-start || parent.active ? Theme.rounding-normal : 4px;
+                                border-bottom-left-radius: parent.group-end || parent.active ? Theme.rounding-normal : 4px;
+                                border-bottom-right-radius: parent.group-end || parent.active ? Theme.rounding-normal : 4px;
+                                background: parent.active ? Theme.layer(Theme.c.secondary-container, 3) : Theme.layer(Theme.c.surface-container, 2);
+                                animate background { duration: Theme.anim-small; }
+
+                                StateLayer {
+                                    border-radius: parent.border-top-left-radius;
+                                    clicked => { root.page = i; root.style-view = 0; }
+                                }
+                                HorizontalLayout {
+                                    padding-left: Theme.padding-normal;
+                                    spacing: Theme.spacing-normal;
+                                    Rectangle {
+                                        width: 34px;
+                                        height: 34px;
+                                        y: 8px;
+                                        border-radius: Theme.rounding-full;
+                                        background: entry.active ? Theme.c.primary : Theme.layer(Theme.c.surface-container-highest, 3);
+                                        MaterialIcon {
+                                            text: item.icon;
+                                            fill: entry.active;
+                                            font-size: Theme.font-larger;
+                                            color: entry.active ? Theme.c.on-primary : Theme.c.on-surface-variant;
+                                        }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        StyledText { text: item.title; font-size: Theme.font-normal; }
+                                        StyledText { text: item.subtitle; font-size: Theme.font-small; color: Theme.c.outline; overflow: elide; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---------- content ----------
+            Rectangle {
+                horizontal-stretch: 1;
+                border-radius: Theme.rounding-normal;
+                background: Theme.layer(Theme.c.surface-container, 2);
+                clip: true;
+
+                VerticalLayout {
+                    padding: Theme.padding-large;
+                    padding-top: Theme.padding-normal;
+                    spacing: Theme.spacing-normal;
+
+                    header := Rectangle {
+                        height: 40px;
+                        TouchArea {
+                            pointer-event(e) => {
+                                if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.drag(); }
+                            }
+                        }
+                        StyledText {
+                            x: 0;
+                            text: root.nav[root.page].title;
+                            font-size: Theme.font-large + 2px;
+                        }
+                        IconButton {
+                            x: parent.width - self.width + Theme.padding-small;
+                            y: (parent.height - self.height) / 2;
+                            icon: "close";
+                            size: 28px;
+                            icon-size: Theme.font-larger;
+                            clicked => { root.close-requested(); }
+                        }
+                    }
+
+                    Flickable {
+                        vertical-stretch: 1;
+                        content-height: pagecol.preferred-height;
+                        pagecol := VerticalLayout {
+                            padding-bottom: Theme.padding-large;
+                            if root.page == 0: WallpaperPage {
+                                preview: root.wallpaper-preview;
+                                has-preview: root.has-wallpaper-preview;
+                                schemes: root.schemes;
+                                wallpapers: root.wallpapers;
+                                total: root.wallpapers-total;
+                                wallpaper-dir: root.wallpaper-dir;
+                                view <=> root.style-view;
+                            }
+                            if root.page == 1: NetworkPage { }
+                            if root.page == 2: DevicesPage { }
+                            if root.page == 3: AudioPage { }
+                            if root.page == 4: UpdatesPage { }
+                            if root.page == 5: PluginsPage { }
+                            if root.page == 6: PanelsPage { }
+                            if root.page == 7: ServicesPage { }
+                            if root.page == 8: LanguagePage { }
+                            if root.page == 9: AboutPage { system: root.about-system; software: root.about-software; version: root.version; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

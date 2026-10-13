@@ -1,0 +1,223 @@
+// Bottom-right drawer (Caelestia modules/utilities): keep awake, screenshot,
+// screen recorder with recordings list, and quick toggles.
+import { Theme } from "../theme.slint";
+import { Shell, Recording } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, StyledSwitch, TextButton, Card } from "../components/base.slint";
+import { DrawerFrame, Edge } from "../components/drawer.slint";
+
+component UtilCard inherits Card {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> subtitle;
+    level: 2;
+    min-height: 56px;
+    HorizontalLayout {
+        padding: Theme.padding-larger;
+        spacing: Theme.spacing-normal;
+        Rectangle {
+            width: 34px;
+            height: 34px;
+            border-radius: Theme.rounding-full;
+            background: Theme.layer(Theme.c.secondary-container, 3);
+            MaterialIcon { text: root.icon; color: Theme.c.on-secondary-container; font-size: Theme.font-larger; }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            StyledText { text: root.title; font-size: Theme.font-normal; overflow: elide; }
+            StyledText { text: root.subtitle; font-size: Theme.font-small; color: Theme.c.on-surface-variant; overflow: elide; }
+        }
+        @children
+    }
+}
+
+component SplitButton inherits HorizontalLayout {
+    in property <string> icon;
+    in property <string> text;
+    callback clicked();
+    callback menu();
+    spacing: 3px;
+    alignment: center;
+    Rectangle {
+        height: 30px;
+        width: row.preferred-width + 20px;
+        border-top-left-radius: 15px;
+        border-bottom-left-radius: 15px;
+        border-top-right-radius: 6px;
+        border-bottom-right-radius: 6px;
+        background: Theme.c.primary-container;
+        StateLayer { border-radius: 8px; tint: Theme.c.on-primary-container; clicked => { root.clicked(); } }
+        row := HorizontalLayout {
+            alignment: center;
+            spacing: 4px;
+            MaterialIcon { text: root.icon; font-size: Theme.font-normal; color: Theme.c.on-primary-container; }
+            StyledText { text: root.text; font-size: Theme.font-small; color: Theme.c.on-primary-container; }
+        }
+    }
+    Rectangle {
+        height: 30px;
+        width: 28px;
+        border-top-left-radius: 6px;
+        border-bottom-left-radius: 6px;
+        border-top-right-radius: 15px;
+        border-bottom-right-radius: 15px;
+        background: Theme.c.primary-container;
+        StateLayer { border-radius: 8px; tint: Theme.c.on-primary-container; clicked => { root.menu(); } }
+        MaterialIcon { text: "expand_more"; font-size: Theme.font-normal; color: Theme.c.on-primary-container; }
+    }
+}
+
+export component UtilitiesWindow inherits Window {
+    title: "caelestia-utilities";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in-out property <bool> open;
+    in-out property <bool> shot-fullscreen: false;
+    in-out property <bool> rec-region: false;
+
+    out property <length> blur-x: frame.panel-x;
+    out property <length> blur-y: frame.panel-y;
+    out property <length> blur-w: frame.panel-w;
+    out property <length> blur-h: frame.panel-h;
+
+    property <length> panel-w: 300px;
+    property <length> panel-h: col.preferred-height;
+    width: root.panel-w + Theme.t.border-rounding;
+    height: root.panel-h + Theme.t.border-rounding;
+
+    frame := DrawerFrame {
+        edge: Edge.bottom-right;
+        open: root.open;
+        panel-width: root.panel-w;
+        panel-height: root.panel-h;
+
+        col := VerticalLayout {
+            padding: Theme.padding-large;
+            spacing: Theme.spacing-normal;
+
+            UtilCard {
+                icon: "coffee";
+                title: @tr("Keep Awake");
+                subtitle: Shell.keep-awake ? @tr("Preventing sleep") : @tr("Normal power management");
+                StyledSwitch {
+                    y: (parent.height - self.height) / 2;
+                    checked: Shell.keep-awake;
+                    toggled(v) => { Shell.action("keep-awake", v ? "on" : "off"); }
+                }
+            }
+
+            UtilCard {
+                icon: "screenshot_monitor";
+                title: @tr("Screenshot");
+                subtitle: @tr("Ready");
+                SplitButton {
+                    icon: root.shot-fullscreen ? "fullscreen" : "screenshot_region";
+                    text: root.shot-fullscreen ? @tr("Full") : @tr("Region");
+                    clicked => { Shell.action("screenshot", root.shot-fullscreen ? "fullscreen" : "region"); }
+                    menu => { root.shot-fullscreen = !root.shot-fullscreen; }
+                }
+            }
+
+            Card {
+                level: 2;
+                VerticalLayout {
+                    UtilCard {
+                        background: transparent;
+                        icon: "screen_record";
+                        title: @tr("Screen Rec...");
+                        subtitle: @tr("Ready");
+                        SplitButton {
+                            icon: "videocam";
+                            text: @tr("Record");
+                            clicked => { Shell.action("record", "toggle"); }
+                            menu => { Shell.action("record", "folder"); }
+                        }
+                    }
+                    HorizontalLayout {
+                        padding-left: Theme.padding-larger;
+                        padding-right: Theme.padding-larger;
+                        spacing: Theme.spacing-small;
+                        MaterialIcon { text: "list"; font-size: Theme.font-larger; color: Theme.c.on-surface-variant; }
+                        StyledText { text: @tr("Recordings"); font-size: Theme.font-normal; }
+                        Rectangle { horizontal-stretch: 1; }
+                        MaterialIcon { text: "unfold_more"; font-size: Theme.font-normal; color: Theme.c.on-surface-variant; }
+                    }
+                    VerticalLayout {
+                        padding: Theme.padding-normal;
+                        padding-left: Theme.padding-larger;
+                        spacing: 2px;
+                        if Shell.recordings.length == 0: StyledText {
+                            text: @tr("No recordings yet");
+                            font-size: Theme.font-small;
+                            color: Theme.c.outline;
+                        }
+                        for rec in Shell.recordings: HorizontalLayout {
+                            spacing: 2px;
+                            StyledText {
+                                horizontal-stretch: 1;
+                                text: rec.name;
+                                font-size: Theme.font-small;
+                                color: Theme.c.on-surface-variant;
+                                overflow: elide;
+                            }
+                            IconButton { icon: "play_arrow"; size: 22px; icon-size: Theme.font-normal; inactive-fg: Theme.c.on-surface; clicked => { Shell.action("open-path", rec.path); } }
+                            IconButton { icon: "folder"; size: 22px; icon-size: Theme.font-normal; inactive-fg: Theme.c.on-surface; clicked => { Shell.action("reveal-path", rec.path); } }
+                            IconButton { icon: "delete"; size: 22px; icon-size: Theme.font-normal; inactive-fg: Theme.c.error; clicked => { Shell.action("delete-recording", rec.path); } }
+                        }
+                    }
+                }
+            }
+
+            Card {
+                level: 2;
+                VerticalLayout {
+                    padding: Theme.padding-larger;
+                    spacing: Theme.spacing-small;
+                    StyledText { text: @tr("Quick Toggles"); font-size: Theme.font-normal; }
+                    HorizontalLayout {
+                        spacing: Theme.spacing-small;
+                        alignment: space-between;
+                        IconButton {
+                            icon: Shell.status.wifi-available ? "wifi" : "wifi_off";
+                            kind: ButtonKind.tonal; checkable: true; toggled: Shell.status.wifi;
+                            size: 34px; icon-size: Theme.font-larger;
+                            clicked => { Shell.action("toggle-wifi", ""); }
+                        }
+                        IconButton {
+                            icon: "bluetooth";
+                            kind: ButtonKind.tonal; checkable: true; toggled: Shell.status.bluetooth;
+                            size: 34px; icon-size: Theme.font-larger;
+                            clicked => { Shell.action("toggle-bluetooth", ""); }
+                        }
+                        IconButton {
+                            icon: Shell.status.mic-muted ? "mic_off" : "mic";
+                            kind: ButtonKind.tonal; checkable: true; toggled: !Shell.status.mic-muted;
+                            size: 34px; icon-size: Theme.font-larger;
+                            clicked => { Shell.action("toggle-mic", ""); }
+                        }
+                        IconButton {
+                            icon: "settings";
+                            kind: ButtonKind.tonal;
+                            size: 34px; icon-size: Theme.font-larger;
+                            clicked => { Shell.action("toggle", "settings"); }
+                        }
+                        IconButton {
+                            icon: "gamepad";
+                            kind: ButtonKind.tonal; checkable: true; toggled: false;
+                            size: 34px; icon-size: Theme.font-larger;
+                            clicked => { Shell.action("game-bar", ""); }
+                        }
+                        IconButton {
+                            icon: Shell.dnd ? "notifications_off" : "notifications";
+                            kind: ButtonKind.tonal; checkable: true; toggled: Shell.dnd;
+                            size: 34px; icon-size: Theme.font-larger;
+                            clicked => { Shell.action("toggle-dnd", ""); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

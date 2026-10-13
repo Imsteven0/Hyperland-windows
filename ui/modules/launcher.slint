@@ -1,0 +1,300 @@
+// Bottom drawer (Caelestia modules/launcher): fuzzy app search, `>` actions
+// and a wallpaper carousel. Filtering happens in Rust (nucleo), the UI only
+// renders results and handles keyboard navigation.
+import { Theme } from "../theme.slint";
+import { Shell, AppEntry, WallpaperEntry, PickerEntry } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer, StyledInput } from "../components/base.slint";
+import { DrawerFrame, Edge } from "../components/drawer.slint";
+
+export component LauncherWindow inherits Window {
+    title: "caelestia-launcher";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in-out property <bool> open;
+    in property <[AppEntry]> results;
+    in property <[WallpaperEntry]> wallpapers;
+    in property <bool> wallpaper-mode;
+    // Live-preview pickers ("scheme" | "variant" | "opacity", "" = none):
+    // moving the selection previews on the whole UI, Enter keeps it, Esc reverts.
+    in property <string> picker-mode;
+    in property <string> picker-title;
+    in property <[PickerEntry]> picker-entries;
+    callback picker-preview(int);
+    callback picker-confirm(int);
+    in-out property <int> selected: 0;
+    in-out property <string> query <=> search.text;
+
+    callback search-changed(string);
+
+    out property <length> blur-x: frame.panel-x;
+    out property <length> blur-y: frame.panel-y;
+    out property <length> blur-w: frame.panel-w;
+    out property <length> blur-h: frame.panel-h;
+    callback activate(/* index into results */ int);
+    callback activate-wallpaper(int);
+    // Browsing applies each wallpaper live; Enter keeps it, Esc restores.
+    callback preview-wallpaper(int);
+    callback dismiss();
+    // Pickers hide the search field, so the key scope itself takes focus.
+    public function focus-search() {
+        if root.picker-mode != "" { keys.focus(); } else { search.focus-input(); }
+    }
+    changed picker-mode => { root.focus-search(); }
+    public function reset() { search.clear(); root.selected = 0; root.offset = 0; }
+
+    property <length> item-h: 54px;
+    property <int> max-shown: Shell.cfg.launcher-max-shown;
+    property <int> shown: min(root.results.length, root.max-shown);
+    property <int> offset: 0;
+    property <length> list-h: root.picker-mode != "" ? 196px : root.wallpaper-mode ? 200px : root.shown * root.item-h;
+    property <length> pad: Theme.padding-large;
+
+    width: 600px + Theme.t.border-rounding * 2;
+    height: root.max-shown * root.item-h + 44px + Theme.padding-large * 3 + 10px;
+
+    changed selected => {
+        if root.picker-mode != "" { root.picker-preview(root.selected); }
+        if root.wallpaper-mode { root.preview-wallpaper(root.selected); }
+        if root.selected < root.offset { root.offset = root.selected; }
+        if root.selected >= root.offset + root.max-shown { root.offset = root.selected - root.max-shown + 1; }
+    }
+    changed results => {
+        root.selected = 0;
+        root.offset = 0;
+    }
+
+    frame := DrawerFrame {
+        edge: Edge.bottom;
+        open: root.open;
+        panel-width: 600px;
+        panel-height: root.list-h + 44px + root.pad * 2 + (root.shown > 0 || root.wallpaper-mode || root.picker-mode != "" ? Theme.spacing-normal : 0);
+        animate panel-height { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+
+        keys := FocusScope {
+            capture-key-pressed(e) => {
+                if e.text == Key.Escape { root.dismiss(); return accept; }
+                if root.picker-mode != "" {
+                    if e.text == Key.LeftArrow || e.text == Key.UpArrow { root.selected = max(0, root.selected - 1); return accept; }
+                    if e.text == Key.RightArrow || e.text == Key.DownArrow || e.text == Key.Tab { root.selected = min(root.picker-entries.length - 1, root.selected + 1); return accept; }
+                    if e.text == Key.Return { root.picker-confirm(root.selected); return accept; }
+                    return accept;
+                }
+                if root.wallpaper-mode {
+                    if e.text == Key.LeftArrow { root.selected = max(0, root.selected - 1); return accept; }
+                    if e.text == Key.RightArrow { root.selected = min(root.wallpapers.length - 1, root.selected + 1); return accept; }
+                    if e.text == Key.Return { root.activate-wallpaper(root.selected); return accept; }
+                    return reject;
+                }
+                if e.text == Key.UpArrow || (e.modifiers.control && e.text == "k") {
+                    root.selected = max(0, root.selected - 1); return accept;
+                }
+                if e.text == Key.DownArrow || (e.modifiers.control && e.text == "j") || e.text == Key.Tab {
+                    root.selected = min(root.results.length - 1, root.selected + 1); return accept;
+                }
+                if e.text == Key.Return {
+                    if root.results.length > 0 { root.activate(root.selected); }
+                    return accept;
+                }
+                reject
+            }
+
+            VerticalLayout {
+                padding: root.pad;
+                spacing: Theme.spacing-normal;
+                alignment: end;
+
+                // ---- results ----
+                if !root.wallpaper-mode && root.picker-mode == "": Rectangle {
+                    height: root.list-h;
+                    clip: true;
+                    for app[i] in root.results: Rectangle {
+                        property <float> appear: 0;
+                        init => { self.appear = 1; }
+                        animate appear { duration: Theme.anim-small + Math.min(i - root.offset, 8) * 25ms; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+                        opacity: self.appear;
+                        transform-scale: 0.96 + self.appear * 0.04;
+                        y: (i - root.offset) * root.item-h + (1 - self.appear) * 12px;
+                        height: root.item-h;
+                        visible: i >= root.offset - 1 && i <= root.offset + root.max-shown;
+                        animate y { duration: Theme.anim-small; easing: cubic-bezier(0.2, 0, 0, 1); }
+                        border-radius: Theme.rounding-normal;
+                        background: i == root.selected ? Theme.layer(Theme.c.surface-container-highest, 2) : transparent;
+                        animate background { duration: Theme.anim-small; }
+
+                        StateLayer {
+                            border-radius: parent.border-radius;
+                            clicked => { root.activate(i); }
+                        }
+                        HorizontalLayout {
+                            padding-left: Theme.padding-normal;
+                            padding-right: Theme.padding-normal;
+                            spacing: Theme.spacing-normal;
+                            Rectangle {
+                                width: 32px;
+                                if app.has-icon: Image {
+                                    width: 32px;
+                                    height: 32px;
+                                    source: app.icon;
+                                    image-rendering: smooth;
+                                }
+                                if !app.has-icon: Rectangle {
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: Theme.rounding-small;
+                                    background: app.is-action ? Theme.c.secondary-container : Theme.c.surface-container-highest;
+                                    MaterialIcon {
+                                        text: app.glyph != "" ? app.glyph : "apps";
+                                        color: app.is-action ? Theme.c.on-secondary-container : Theme.c.on-surface-variant;
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 0;
+                                StyledText {
+                                    text: app.name;
+                                    font-size: Theme.font-normal;
+                                    overflow: elide;
+                                }
+                                if app.description != "": StyledText {
+                                    text: app.description;
+                                    font-size: Theme.font-small;
+                                    color: Theme.c.outline;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---- wallpaper carousel ----
+                if root.wallpaper-mode: Rectangle {
+                    height: root.list-h;
+                    clip: true;
+                    property <length> card-w: 220px;
+                    for wp[i] in root.wallpapers: Rectangle {
+                        property <bool> sel: i == root.selected;
+                        x: parent.width / 2 - parent.card-w / 2 + (i - root.selected) * (parent.card-w + Theme.spacing-normal);
+                        y: self.sel ? 0 : 16px;
+                        width: parent.card-w;
+                        height: parent.height - (self.sel ? 0 : 32px);
+                        animate x, y, height { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+                        border-radius: Theme.rounding-normal;
+                        border-width: wp.current ? 3px : 0;
+                        border-color: Theme.c.primary;
+                        clip: true;
+                        background: Theme.c.surface-container-highest;
+                        Image {
+                            width: 100%;
+                            height: 100%;
+                            source: wp.thumb;
+                            image-fit: cover;
+                        }
+                        Rectangle {
+                            y: parent.height - self.height;
+                            height: 26px;
+                            background: Theme.c.surface.with-alpha(0.7);
+                            StyledText { text: wp.name; font-size: Theme.font-small; overflow: elide; horizontal-alignment: center; }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if parent.sel { root.activate-wallpaper(i); } else { root.selected = i; }
+                            }
+                        }
+                    }
+                }
+
+                // ---- live-preview picker carousel ----
+                if root.picker-mode != "": Rectangle {
+                    height: root.list-h;
+                    clip: true;
+                    property <length> card-w: 150px;
+                    for opt[i] in root.picker-entries: Rectangle {
+                        property <bool> sel: i == root.selected;
+                        x: parent.width / 2 - parent.card-w / 2 + (i - root.selected) * (parent.card-w + Theme.spacing-normal);
+                        y: self.sel ? 0 : 18px;
+                        width: parent.card-w;
+                        height: parent.height - (self.sel ? 0 : 36px);
+                        animate x, y, height { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+                        border-radius: Theme.rounding-normal;
+                        border-width: self.sel ? 3px : opt.current ? 2px : 1px;
+                        border-color: self.sel ? Theme.c.primary : opt.current ? Theme.c.secondary : Theme.c.outline-variant.with-alpha(0.5);
+                        animate border-color { duration: Theme.anim-small; }
+                        clip: true;
+                        background: root.picker-mode == "opacity" ? Theme.c.surface-container-highest : opt.bg;
+
+                        // opacity preview: a vivid "wallpaper" under a panel at that alpha
+                        if root.picker-mode == "opacity": Rectangle {
+                            background: @linear-gradient(135deg, Theme.c.primary 0%, Theme.c.tertiary 100%);
+                            Rectangle {
+                                x: 14px;
+                                y: 14px;
+                                width: parent.width - 28px;
+                                height: parent.height - 62px;
+                                border-radius: Theme.rounding-small;
+                                background: Theme.c.surface.with-alpha(opt.alpha);
+                                StyledText { text: Math.round(opt.alpha * 100) + "%"; font-family: Theme.t.font-mono; color: Theme.c.on-surface; horizontal-alignment: center; }
+                            }
+                        }
+                        // colour preview: three accent dots on the scheme's surface
+                        if root.picker-mode != "opacity": HorizontalLayout {
+                            y: 24px;
+                            height: 34px;
+                            alignment: center;
+                            spacing: 6px;
+                            for c in [opt.c1, opt.c2, opt.c3]: Rectangle { width: 30px; height: 30px; border-radius: 15px; background: c; }
+                        }
+                        Rectangle {
+                            y: parent.height - self.height;
+                            height: 46px;
+                            background: root.picker-mode == "opacity" ? Theme.c.surface.with-alpha(0.85) : transparent;
+                            VerticalLayout {
+                                alignment: center;
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                StyledText { text: opt.label; font-size: Theme.font-smaller; color: root.picker-mode == "opacity" ? Theme.c.on-surface : opt.fg; horizontal-alignment: center; overflow: elide; }
+                                if opt.sublabel != "": StyledText { text: opt.sublabel; font-size: Theme.font-small; color: root.picker-mode == "opacity" ? Theme.c.outline : opt.fg.with-alpha(0.65); horizontal-alignment: center; overflow: elide; }
+                            }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if parent.sel { root.picker-confirm(i); } else { root.selected = i; }
+                            }
+                        }
+                    }
+                }
+                if root.picker-mode != "": Rectangle {
+                    height: 44px;
+                    border-radius: Theme.rounding-full;
+                    background: Theme.layer(Theme.c.surface-container-highest, 2);
+                    HorizontalLayout {
+                        padding-left: Theme.padding-larger;
+                        padding-right: Theme.padding-larger;
+                        spacing: Theme.spacing-normal;
+                        StyledText { text: root.picker-title; font-size: Theme.font-normal; color: Theme.c.primary; }
+                        StyledText {
+                            horizontal-stretch: 1;
+                            text: @tr("Arrows preview · Enter applies · Esc cancels");
+                            font-size: Theme.font-small;
+                            color: Theme.c.outline;
+                            horizontal-alignment: right;
+                            overflow: elide;
+                        }
+                    }
+                }
+
+                search := StyledInput {
+                    visible: root.picker-mode == "";
+                    height: root.picker-mode == "" ? 44px : 0;
+                    placeholder: root.wallpaper-mode ? @tr("Search wallpapers")
+                        : @tr("Type \"{}\" for commands", Shell.cfg.launcher-action-prefix);
+                    edited(text) => { root.search-changed(text); }
+                }
+            }
+        }
+    }
+}

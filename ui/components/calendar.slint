@@ -1,0 +1,81 @@
+// Month grid (Monday first) fed by `Shell.calendar`. Arrows or the mouse
+// wheel change month (Rust recomputes the grid); clicking the title returns
+// to the current month — same interactions as Caelestia's calendar.
+import { Theme } from "../theme.slint";
+import { Shell } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer } from "base.slint";
+
+component NavButton inherits Rectangle {
+    in property <string> icon;
+    callback clicked();
+    width: 26px;
+    height: 26px;
+    border-radius: 13px;
+    StateLayer { border-radius: parent.border-radius; clicked => { root.clicked(); } }
+    MaterialIcon { text: root.icon; font-size: Theme.font-larger; color: Theme.c.on-surface-variant; }
+}
+
+export component Calendar inherits VerticalLayout {
+    in property <length> cell: 30px;
+    in property <length> cell-height: 26px;
+    spacing: 4px;
+
+    HorizontalLayout {
+        spacing: 2px;
+        NavButton { icon: "chevron_left"; clicked => { Shell.action("calendar", "-1"); } }
+        title := Rectangle {
+            horizontal-stretch: 1;
+            border-radius: Theme.rounding-full;
+            StateLayer { border-radius: parent.border-radius; clicked => { Shell.action("calendar", "0"); } }
+            StyledText {
+                text: Shell.calendar-title;
+                font-size: Theme.font-normal;
+                font-weight: 600;
+                color: Theme.c.primary;
+                horizontal-alignment: center;
+            }
+        }
+        NavButton { icon: "chevron_right"; clicked => { Shell.action("calendar", "+1"); } }
+    }
+    HorizontalLayout {
+        for d[i] in [@tr("Mo"), @tr("Tu"), @tr("We"), @tr("Th"), @tr("Fr"), @tr("Sa"), @tr("Su")]: StyledText {
+            text: d;
+            width: root.cell;
+            font-size: Theme.font-small;
+            font-weight: 600;
+            color: i >= 5 ? Theme.c.secondary : Theme.c.on-surface-variant;
+            horizontal-alignment: center;
+        }
+    }
+    grid := Rectangle {
+        width: root.cell * 7;
+        height: root.cell-height * 6;
+        for d[i] in Shell.calendar: Rectangle {
+            x: Math.mod(i, 7) * root.cell;
+            y: Math.floor(i / 7) * root.cell-height;
+            width: root.cell;
+            height: root.cell-height;
+            Rectangle {
+                width: min(root.cell, root.cell-height) - 2px;
+                height: self.width;
+                border-radius: self.width / 2;
+                background: d.today ? Theme.c.primary : transparent;
+            }
+            StyledText {
+                text: d.day;
+                font-size: Theme.font-small;
+                font-weight: d.today ? 700 : 400;
+                horizontal-alignment: center;
+                color: d.today ? Theme.c.on-primary
+                    : !d.current-month ? Theme.c.outline.with-alpha(0.6)
+                    : Math.mod(i, 7) >= 5 ? Theme.c.secondary : Theme.c.on-surface;
+            }
+        }
+        TouchArea {
+            scroll-event(e) => {
+                Shell.action("calendar", e.delta-y > 0 ? "-1" : "+1");
+                accept
+            }
+        }
+    }
+}

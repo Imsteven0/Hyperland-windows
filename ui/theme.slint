@@ -1,0 +1,132 @@
+// Design tokens — a 1:1 port of Caelestia's `Appearance` + `Colours` singletons.
+// Every value here is driven from Rust (config/shell.json + scheme.json) so the
+// whole shell restyles live when the dots change.
+
+export struct Palette {
+    primary: color,
+    on-primary: color,
+    primary-container: color,
+    on-primary-container: color,
+    secondary: color,
+    on-secondary: color,
+    secondary-container: color,
+    on-secondary-container: color,
+    tertiary: color,
+    on-tertiary: color,
+    tertiary-container: color,
+    on-tertiary-container: color,
+    error: color,
+    on-error: color,
+    error-container: color,
+    on-error-container: color,
+    background: color,
+    on-background: color,
+    surface: color,
+    on-surface: color,
+    surface-variant: color,
+    on-surface-variant: color,
+    surface-dim: color,
+    surface-bright: color,
+    surface-container-lowest: color,
+    surface-container-low: color,
+    surface-container: color,
+    surface-container-high: color,
+    surface-container-highest: color,
+    outline: color,
+    outline-variant: color,
+    inverse-surface: color,
+    inverse-on-surface: color,
+    inverse-primary: color,
+    shadow: color,
+    scrim: color,
+    success: color,
+}
+
+export struct Tokens {
+    rounding-scale: float,
+    spacing-scale: float,
+    padding-scale: float,
+    font-scale: float,
+    anim-scale: float,
+    transparency: bool,
+    base-alpha: float,
+    layer-alpha: float,
+    font-sans: string,
+    font-mono: string,
+    font-material: string,
+    font-clock: string,
+    border-thickness: length,
+    border-rounding: length,
+    bar-width: length,
+}
+
+export global Theme {
+    in-out property <Palette> c: {
+        primary: #b5c4ff, on-primary: #1b2d61, primary-container: #334479, on-primary-container: #dbe1ff,
+        secondary: #c1c5dd, on-secondary: #2b3042, secondary-container: #414659, on-secondary-container: #dde1f9,
+        tertiary: #e2bbdb, on-tertiary: #422741, tertiary-container: #a986a3, on-tertiary-container: #000000,
+        error: #ffb4ab, on-error: #690005, error-container: #93000a, on-error-container: #ffdad6,
+        background: #121318, on-background: #e3e1e9,
+        surface: #121318, on-surface: #e3e1e9, surface-variant: #45464f, on-surface-variant: #c6c6d0,
+        surface-dim: #121318, surface-bright: #38393f,
+        surface-container-lowest: #0d0e13, surface-container-low: #1a1b21, surface-container: #1e1f25,
+        surface-container-high: #292a2f, surface-container-highest: #34343a,
+        outline: #8f909a, outline-variant: #45464f,
+        inverse-surface: #e3e1e9, inverse-on-surface: #2f3036, inverse-primary: #4b5c92,
+        shadow: #000000, scrim: #000000, success: #b5ccba,
+    };
+    in-out property <Tokens> t: {
+        rounding-scale: 1, spacing-scale: 1, padding-scale: 1, font-scale: 1, anim-scale: 1,
+        transparency: false, base-alpha: 0.85, layer-alpha: 0.4,
+        font-sans: "Rubik", font-mono: "Cascadia Mono", font-material: "Material Symbols Rounded", font-clock: "Rubik",
+        border-thickness: 10px, border-rounding: 25px, bar-width: 48px,
+    };
+    in-out property <bool> dark: true;
+
+    // ---- Colours (Colours.qml: tPalette / layer()) ----
+    out property <color> base: t.transparency ? c.surface.with-alpha(t.base-alpha) : c.surface;
+    // Caelestia stacks translucent layers on top of the base surface.
+    public pure function layer(col: color, level: int) -> color {
+        if !t.transparency { return col; }
+        return col.with-alpha(Math.clamp(t.layer-alpha + (level - 1) * 0.1, 0, 1));
+    }
+    public pure function state(col: color, hovered: bool, pressed: bool) -> color {
+        if pressed { return col.with-alpha(0.14); }
+        if hovered { return col.with-alpha(0.08); }
+        return col.with-alpha(0);
+    }
+
+    // ---- Appearance.rounding ----
+    out property <length> rounding-small: 12px * t.rounding-scale;
+    out property <length> rounding-normal: 17px * t.rounding-scale;
+    out property <length> rounding-large: 25px * t.rounding-scale;
+    out property <length> rounding-full: 1000px;
+
+    // ---- Appearance.spacing ----
+    out property <length> spacing-small: 7px * t.spacing-scale;
+    out property <length> spacing-smaller: 10px * t.spacing-scale;
+    out property <length> spacing-normal: 12px * t.spacing-scale;
+    out property <length> spacing-larger: 15px * t.spacing-scale;
+    out property <length> spacing-large: 20px * t.spacing-scale;
+
+    // ---- Appearance.padding ----
+    out property <length> padding-small: 5px * t.padding-scale;
+    out property <length> padding-smaller: 7px * t.padding-scale;
+    out property <length> padding-normal: 10px * t.padding-scale;
+    out property <length> padding-larger: 12px * t.padding-scale;
+    out property <length> padding-large: 15px * t.padding-scale;
+
+    // ---- Appearance.font.size ----
+    out property <length> font-small: 11px * t.font-scale;
+    out property <length> font-smaller: 12px * t.font-scale;
+    out property <length> font-normal: 13px * t.font-scale;
+    out property <length> font-larger: 15px * t.font-scale;
+    out property <length> font-large: 18px * t.font-scale;
+    out property <length> font-extra-large: 28px * t.font-scale;
+
+    // ---- Appearance.anim.durations ----
+    out property <duration> anim-small: 200ms * t.anim-scale;
+    out property <duration> anim-normal: 400ms * t.anim-scale;
+    out property <duration> anim-large: 600ms * t.anim-scale;
+    out property <duration> anim-extra-large: 1000ms * t.anim-scale;
+}

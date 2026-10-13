@@ -1,0 +1,353 @@
+// Vertical bar (Caelestia modules/bar): OS icon, workspaces, active window,
+// clock, status icons and power button. Background is painted by BorderWindow
+// so the bar and the frame read as one continuous surface.
+import { Theme } from "../theme.slint";
+import { Shell } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer } from "../components/base.slint";
+
+component WindowsLogo inherits Rectangle {
+    in property <color> tint: Theme.c.primary;
+    property <length> cell: (self.width - 2px) / 2;
+    width: 18px;
+    height: 18px;
+    for i in 4: Rectangle {
+        x: Math.mod(i, 2) * (root.cell + 2px);
+        y: Math.floor(i / 2) * (root.cell + 2px);
+        width: root.cell;
+        height: root.cell;
+        border-radius: 1.5px;
+        background: root.tint;
+    }
+}
+
+// Workspaces with the apps they contain (Caelestia's `showWindows`): every
+// slot shows its number dot and the icons of its windows underneath; the
+// active pill stretches over the whole group. Slot geometry is derived from
+// cumulative counts Rust puts in the model, so no layout pass is needed and
+// the pill can animate smoothly between slots of different heights.
+component Workspaces inherits Rectangle {
+    in property <int> shown: 5;
+    property <length> item: Theme.t.bar-width - 20px;
+    property <length> icon: 18px;
+    property <length> gap: 5px;
+    property <length> pad: 7px;
+    property <length> inset: Theme.padding-small;
+    property <int> active: Shell.active-workspace;
+    property <int> group: Math.floor((root.active - 1) / max(1, root.shown));
+    property <int> g0: Math.min(root.group * root.shown, max(0, Shell.workspaces.length - 1));
+
+    pure function slot-y(i: int) -> length {
+        (i - root.g0) * root.item
+            + (Shell.workspaces[i].icons-before - Shell.workspaces[root.g0].icons-before) * (root.icon + root.gap)
+            + (Shell.workspaces[i].occupied-before - Shell.workspaces[root.g0].occupied-before) * root.pad
+    }
+    pure function slot-h(i: int) -> length {
+        root.item + Shell.workspaces[i].icon-count * (root.icon + root.gap) + (Shell.workspaces[i].icon-count > 0 ? root.pad : 0)
+    }
+
+    property <int> last: Math.min(root.g0 + root.shown, Shell.workspaces.length) - 1;
+    width: Theme.t.bar-width - 12px;
+    height: root.slot-y(root.last) + root.slot-h(root.last) + root.inset * 2;
+    border-radius: Theme.rounding-full;
+    background: Theme.layer(Theme.c.surface-container, 2);
+    animate height { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+
+    TouchArea {
+        // Declared first = behind the slots for clicks; catches the wheel to cycle workspaces.
+        scroll-event(e) => {
+            Shell.action("workspace-relative", e.delta-y > 0 ? "-1" : "1");
+            accept
+        }
+    }
+
+    // Active pill (stretches over the workspace's icons).
+    Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.inset + root.slot-y(root.active - 1);
+        width: root.item;
+        height: root.slot-h(root.active - 1);
+        border-radius: Theme.rounding-full;
+        background: Theme.c.primary;
+        animate y, height { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+    }
+
+    for i in root.shown: slot := Rectangle {
+        property <int> idx: root.g0 + i;
+        property <bool> valid: self.idx < Shell.workspaces.length;
+        property <bool> is-active: self.idx + 1 == root.active;
+        property <bool> occupied: self.valid && Shell.workspaces[self.idx].occupied;
+        visible: self.valid;
+        x: (root.width - root.item) / 2;
+        y: root.inset + root.slot-y(self.idx);
+        width: root.item;
+        height: root.slot-h(self.idx);
+        animate y, height { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+
+        StateLayer {
+            border-radius: Theme.rounding-full;
+            tint: parent.is-active ? Theme.c.on-primary : Theme.c.on-surface;
+            clicked => { Shell.action("workspace", parent.idx + 1); }
+        }
+        // number dot
+        Rectangle {
+            y: (root.item - self.height) / 2;
+            width: parent.is-active ? 8px : parent.occupied ? 7px : 5px;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: parent.is-active ? Theme.c.on-primary : parent.occupied ? Theme.c.on-surface : Theme.c.outline;
+            animate width, background { duration: Theme.anim-small; }
+        }
+        // app icons
+        for img[k] in Shell.workspaces[slot.idx].icons: Image {
+            x: (root.item - root.icon) / 2;
+            y: root.item + k * (root.icon + root.gap);
+            width: root.icon;
+            height: root.icon;
+            source: img;
+            image-rendering: smooth;
+            opacity: slot.is-active ? 1 : 0.8;
+            animate opacity { duration: Theme.anim-small; }
+        }
+    }
+
+}
+
+// A hoverable/clickable bar element. Hovering reports the item's vertical
+// centre so Rust can open the matching popout next to it (Caelestia popouts).
+component BarItem inherits Rectangle {
+    in property <string> popout;
+    callback clicked();
+    callback scrolled(length);
+    border-radius: Theme.rounding-full;
+
+    property <bool> hov: st.hovered;
+    changed hov => {
+        if root.popout != "" {
+            if self.hov {
+                // Integer: float formatting follows the locale ("12,5" in Spanish).
+                Shell.action("popout", root.popout + ":" + Math.round((root.absolute-position.y + root.height / 2) / 1px));
+            } else {
+                Shell.action("popout-leave", root.popout);
+            }
+        }
+    }
+    st := StateLayer {
+        border-radius: root.border-radius;
+        handle-scroll: true;
+        clicked => { root.clicked(); }
+        scrolled(d) => { root.scrolled(d); }
+    }
+    @children
+}
+
+// Rotated active-window title, reading bottom-to-top like Caelestia.
+component ActiveWindow inherits BarItem {
+    width: Theme.t.bar-width - 8px;
+    popout: "activewindow";
+    border-radius: Theme.rounding-normal;
+    VerticalLayout {
+        padding-top: Theme.padding-small;
+        spacing: Theme.spacing-small;
+        alignment: start;
+        MaterialIcon {
+            text: "desktop_windows";
+            color: Theme.c.secondary;
+            font-size: Theme.font-larger;
+        }
+        label-area := Rectangle {
+            vertical-stretch: 1;
+            label := StyledText {
+                width: label-area.height;
+                height: Theme.t.bar-width;
+                x: (label-area.width - self.width) / 2;
+                y: (label-area.height - self.height) / 2;
+                transform-rotation: -90deg;
+                text: Shell.active-title;
+                color: Theme.c.on-surface-variant;
+                font-size: Theme.font-smaller;
+                horizontal-alignment: right;
+                overflow: elide;
+            }
+        }
+    }
+}
+
+component Clock inherits BarItem {
+    width: Theme.t.bar-width - 8px;
+    height: col.preferred-height + Theme.padding-normal;
+    popout: "calendar";
+    clicked => { Shell.action("toggle", "dashboard"); }
+
+    col := VerticalLayout {
+        alignment: center;
+        spacing: 0;
+        MaterialIcon {
+            text: "calendar_month";
+            color: Theme.c.tertiary;
+            font-size: Theme.font-larger;
+        }
+        Rectangle { height: Theme.spacing-small; }
+        StyledText {
+            text: Shell.hours;
+            color: Theme.c.tertiary;
+            font-family: Theme.t.font-mono;
+            font-size: Theme.font-smaller;
+            horizontal-alignment: center;
+        }
+        StyledText {
+            text: Shell.minutes;
+            color: Theme.c.tertiary;
+            font-family: Theme.t.font-mono;
+            font-size: Theme.font-smaller;
+            horizontal-alignment: center;
+        }
+        if Shell.ampm != "": StyledText {
+            text: Shell.ampm;
+            color: Theme.c.tertiary;
+            font-family: Theme.t.font-mono;
+            font-size: Theme.font-small;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+component StatusIcon inherits BarItem {
+    in property <string> icon;
+    in property <color> tint: Theme.c.secondary;
+    height: 30px;
+    MaterialIcon {
+        text: root.icon;
+        color: root.tint;
+        font-size: Theme.font-larger;
+    }
+}
+
+component StatusIcons inherits Rectangle {
+    width: Theme.t.bar-width - 12px;
+    height: col.preferred-height + Theme.padding-small * 2;
+    border-radius: Theme.rounding-full;
+    background: Theme.layer(Theme.c.surface-container, 2);
+
+    col := VerticalLayout {
+        padding: Theme.padding-small;
+        spacing: 2px;
+        if Shell.cfg.bar-show-audio: StatusIcon {
+            icon: Shell.status.muted ? "volume_off"
+                : Shell.status.volume > 0.66 ? "volume_up"
+                : Shell.status.volume > 0.0 ? "volume_down" : "volume_mute";
+            popout: "audio";
+            clicked => { Shell.set-config("@mute", Shell.status.muted ? "false" : "true"); }
+            scrolled(dy) => { Shell.action("volume-step", dy > 0 ? "0.05" : "-0.05"); }
+        }
+        if Shell.cfg.bar-show-audio && Shell.status.mic-muted: StatusIcon {
+            icon: "mic_off";
+            tint: Theme.c.error;
+            popout: "audio";
+            clicked => { Shell.action("toggle-mic", ""); }
+        }
+        if Shell.cfg.bar-show-network: StatusIcon {
+            icon: !Shell.status.online ? "wifi_off"
+                : !Shell.status.wifi ? "lan"
+                : Shell.status.wifi-strength >= 3 ? "network_wifi"
+                : Shell.status.wifi-strength == 2 ? "network_wifi_3_bar"
+                : Shell.status.wifi-strength == 1 ? "network_wifi_2_bar" : "network_wifi_1_bar";
+            popout: "network";
+            clicked => { Shell.action("settings-page", "1"); }
+        }
+        if Shell.cfg.bar-show-bluetooth: StatusIcon {
+            icon: Shell.status.bluetooth ? "bluetooth" : "bluetooth_disabled";
+            popout: "bluetooth";
+            clicked => { Shell.action("toggle-bluetooth", ""); }
+        }
+        if Shell.cfg.bar-show-battery: StatusIcon {
+            icon: !Shell.status.battery-present ? "bolt"
+                : Shell.status.charging ? "battery_charging_full"
+                : Shell.status.battery > 0.9 ? "battery_full"
+                : Shell.status.battery > 0.6 ? "battery_5_bar"
+                : Shell.status.battery > 0.3 ? "battery_3_bar"
+                : Shell.status.battery > 0.1 ? "battery_1_bar" : "battery_alert";
+            tint: Shell.status.battery-present && Shell.status.battery < 0.15 && !Shell.status.charging ? Theme.c.error : Theme.c.secondary;
+            popout: "battery";
+            clicked => { Shell.action("toggle", "utilities"); }
+        }
+    }
+}
+
+export component BarWindow inherits Window {
+    title: "caelestia-bar";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    // The bar paints its own strip; the frame window's region excludes it, so
+    // the two surfaces never overlap (no double alpha, no stolen clicks).
+    Rectangle {
+        background: Theme.base;
+        animate background { duration: Theme.anim-normal; }
+    }
+
+    VerticalLayout {
+        padding-top: Theme.padding-larger;
+        padding-bottom: Theme.padding-larger;
+        spacing: Theme.spacing-normal;
+        alignment: stretch;
+
+        // OS icon -> launcher (Caelestia: OsIcon)
+        Rectangle {
+            height: Theme.t.bar-width - 10px;
+            logo-state := StateLayer {
+                width: parent.height;
+                height: parent.height;
+                border-radius: Theme.rounding-full;
+                clicked => { Shell.action("toggle", "launcher"); }
+                WindowsLogo {
+                    tint: Theme.c.tertiary;
+                }
+            }
+        }
+
+        if Shell.cfg.bar-show-workspaces: HorizontalLayout {
+            alignment: center;
+            Workspaces {
+                shown: Shell.cfg.bar-workspaces-shown;
+            }
+        }
+
+        if Shell.cfg.bar-show-active-window: HorizontalLayout {
+            alignment: center;
+            vertical-stretch: 1;
+            ActiveWindow { }
+        }
+        if !Shell.cfg.bar-show-active-window: Rectangle { vertical-stretch: 1; }
+
+        if Shell.cfg.bar-show-clock: HorizontalLayout {
+            alignment: center;
+            Clock { }
+        }
+
+        if Shell.cfg.bar-show-status: HorizontalLayout {
+            alignment: center;
+            StatusIcons { }
+        }
+
+        if Shell.cfg.bar-show-power: HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: Theme.t.bar-width - 14px;
+                height: self.width;
+                border-radius: Theme.rounding-full;
+                StateLayer {
+                    border-radius: parent.border-radius;
+                    tint: Theme.c.error;
+                    clicked => { Shell.action("toggle", "session"); }
+                }
+                MaterialIcon {
+                    text: "power_settings_new";
+                    fill: true;
+                    color: Theme.c.error;
+                    font-size: Theme.font-large;
+                }
+            }
+        }
+    }
+}
