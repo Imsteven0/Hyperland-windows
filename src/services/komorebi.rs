@@ -60,8 +60,18 @@ pub enum KStatus {
     Running(KState),
 }
 
-/// `komorebic.exe` from PATH or the default install locations.
+/// `komorebic.exe` from PATH or the default install locations. Remembered
+/// once found (every tiling shortcut runs it); until then each call looks
+/// again, so installing komorebi while the shell runs just works.
 pub fn komorebic() -> Option<PathBuf> {
+    static FOUND: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    if let Some(p) = FOUND.get() {
+        return Some(p.clone());
+    }
+    find_komorebic().map(|p| FOUND.get_or_init(|| p).clone())
+}
+
+fn find_komorebic() -> Option<PathBuf> {
     let from_path = std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join("komorebic.exe")).find(|p| p.is_file()));
     from_path.or_else(|| {
         let mut candidates = vec![PathBuf::from(r"C:\Program Files\komorebi\bin\komorebic.exe")];

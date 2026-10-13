@@ -11,7 +11,7 @@ use windows::{
         System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance, CoTaskMemFree, IPersistFile, STGM_READ},
         UI::Shell::{
             BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem, IShellItemImageFactory, IShellLinkW, KF_FLAG_DEFAULT, SHCreateItemFromParsingName,
-            SHGetKnownFolderItem, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY, ShellLink,
+            SHGetKnownFolderItem, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY, SIIGBF_THUMBNAILONLY, ShellLink,
         },
     },
     core::{HSTRING, Interface},
@@ -104,11 +104,13 @@ fn start_menu_descriptions() -> HashMap<String, String> {
     map
 }
 
-/// Icon/thumbnail for any path (used for wallpapers and recordings too).
+/// The file's icon (`icon_only`), or its real thumbnail from Explorer's cache:
+/// `None` rather than the file-type icon when Windows can't make one (no codec
+/// installed, thumbnails turned off), so callers can decode the file themselves.
 pub fn path_thumbnail(path: &Path, px: i32, icon_only: bool) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
     unsafe {
         let item: IShellItem = SHCreateItemFromParsingName(&HSTRING::from(path.as_os_str()), None).ok()?;
-        if icon_only { item_icon(&item, px) } else { item_image(&item, px, SIIGBF_BIGGERSIZEOK) }
+        if icon_only { item_icon(&item, px) } else { item_image(&item, px, SIIGBF_BIGGERSIZEOK | SIIGBF_THUMBNAILONLY) }
     }
 }
 

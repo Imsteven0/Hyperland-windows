@@ -7,7 +7,12 @@
 //!   of them is running (exact Tctl / package temperature), otherwise the ACPI
 //!   thermal zones exposed as performance counters.
 
-use std::{collections::HashMap, ffi::c_void, mem::size_of};
+use std::{
+    collections::HashMap,
+    ffi::c_void,
+    mem::size_of,
+    time::{Duration, Instant},
+};
 
 use windows::{
     Wdk::Graphics::Direct3D::{
@@ -61,23 +66,50 @@ impl Drop for GpuTemp {
     }
 }
 
+/// How often to look for LibreHardwareMonitor again while it isn't answering:
+/// each probe costs two WMI connections and a local HTTP request.
+const RETRY: Duration = Duration::from_secs(10);
+
 pub struct CpuTemp {
+    http: ureq::Agent,
+    /// Its web server answered last time: keep asking every sample.
+    http_ok: bool,
     wmi: Option<WMIConnection>,
     zones: Option<(PDH_HQUERY, PDH_HCOUNTER)>,
+    next_probe: Instant,
 }
 
 impl CpuTemp {
     pub fn new() -> Self {
-        Self { wmi: hardware_monitor(), zones: thermal_zones() }
+        let http = ureq::Agent::new_with_config(ureq::config::Config::builder().timeout_global(Some(Duration::from_millis(250))).build());
+        Self { http, http_ok: false, wmi: hardware_monitor(), zones: thermal_zones(), next_probe: Instant::now() + RETRY }
+    }
+
+    /// LibreHardwareMonitor is publishing sensors (WMI or its web server). It
+    /// only does once it runs as administrator: that loads its sensor driver.
+    pub fn lhm_connected(&self) -> bool {
+        self.http_ok || self.wmi.is_some()
+    }
+
+    pub fn probe_now(&mut self) {
+        self.next_probe = Instant::now();
     }
 
     pub fn read(&mut self) -> Option<f32> {
-        if self.wmi.is_none() {
-            // LibreHardwareMonitor may be started after us.
-            self.wmi = hardware_monitor();
+        // It may be started (or elevated) after us.
+        let probe = Instant::now() >= self.next_probe;
+        if probe {
+            self.next_probe = Instant::now() + RETRY;
+            if self.wmi.is_none() {
+                self.wmi = hardware_monitor();
+            }
         }
-        if let Some(t) = lhm_http() {
-            return Some(t);
+        if self.http_ok || probe {
+            self.http_ok = false;
+            if let Some(t) = lhm_http(&self.http) {
+                self.http_ok = true;
+                return Some(t);
+            }
         }
         if let Some(conn) = &self.wmi {
             match conn.raw_query::<HashMap<String, Variant>>("SELECT Name, Identifier, Value FROM Sensor WHERE SensorType='Temperature'") {
@@ -97,8 +129,7 @@ impl CpuTemp {
 }
 
 /// LibreHardwareMonitor's optional web server (Options › Remote Web Server).
-fn lhm_http() -> Option<f32> {
-    let agent = ureq::Agent::new_with_config(ureq::config::Config::builder().timeout_global(Some(std::time::Duration::from_millis(250))).build());
+fn lhm_http(agent: &ureq::Agent) -> Option<f32> {
     let mut resp = agent.get("http://127.0.0.1:8085/data.json").call().ok()?;
     let v: serde_json::Value = resp.body_mut().read_json().ok()?;
     fn walk(n: &serde_json::Value, out: &mut Vec<(String, f32)>) {
@@ -143,15 +174,18 @@ pub fn lhm_path() -> Option<std::path::PathBuf> {
 }
 
 pub fn lhm_running() -> bool {
+    // Names only: no CPU, memory or command line for every process.
     let mut sys = sysinfo::System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    sys.refresh_processes_specifics(sysinfo::ProcessesToUpdate::All, true, sysinfo::ProcessRefreshKind::nothing());
     sys.processes_by_name(std::ffi::OsStr::new("LibreHardwareMonitor")).next().is_some()
 }
 
 fn hardware_monitor() -> Option<WMIConnection> {
     for ns in ["root\\LibreHardwareMonitor", "root\\OpenHardwareMonitor"] {
         if let Ok(conn) = WMIConnection::with_namespace_path(ns) {
-            if conn.raw_query::<HashMap<String, Variant>>("SELECT Name FROM Sensor WHERE SensorType='Temperature'").is_ok_and(|r| !r.is_empty()) {
+            // Present even with no temperature sensor (a VM has none): that still
+            // says it runs elevated, and "N/A" is then the right answer.
+            if conn.raw_query::<HashMap<String, Variant>>("SELECT Name FROM Sensor WHERE SensorType='Temperature'").is_ok() {
                 log::info!("CPU temperature from {ns}");
                 return Some(conn);
             }

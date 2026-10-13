@@ -66,7 +66,15 @@ impl Caelestia {
                 .collect();
             (groups, st.notifs.len() as i32)
         };
-        self.sidebar.global::<ShellGlobal>().set_notif_groups(ModelRc::new(VecModel::from(groups)));
+        // Update the shown groups in place, keyed by app: cards that stay are
+        // not rebuilt, so only new ones play their entrance animation.
+        use slint::Model;
+        let g = self.sidebar.global::<ShellGlobal>();
+        let model = g.get_notif_groups();
+        match model.as_any().downcast_ref::<VecModel<NotifGroup>>() {
+            Some(m) => sync_keyed(m, groups, |n| n.app_id.clone()),
+            None => g.set_notif_groups(ModelRc::new(VecModel::from(groups))),
+        }
         for s in self.screens.borrow().iter() {
             s.bar.global::<ShellGlobal>().set_notif_count(count);
         }

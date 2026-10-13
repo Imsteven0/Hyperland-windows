@@ -104,6 +104,9 @@ msgstr "Instalar LibreHardwareMonitor"
 msgid "Start LibreHardwareMonitor"
 msgstr "Iniciar LibreHardwareMonitor"
 
+msgid "Run LibreHardwareMonitor as admin"
+msgstr "Ejecutar LibreHardwareMonitor como admin"
+
 msgid "Usage"
 msgstr "Uso"
 

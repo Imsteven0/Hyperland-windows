@@ -1,7 +1,8 @@
 // A panel that grows out of the screen border with concave "flares" on both
 // sides, exactly like Caelestia's drawers (dashboard, launcher, utilities...).
-// The hosting window is sized by Rust to `full-width` x `full-height`.
-import { Theme } from "../theme.slint";
+// The hosting window is sized to the panel plus `room` along the growth axis:
+// the spatial curve overshoots its target a little (1.4%) before settling.
+import { Theme, Motion } from "../theme.slint";
 import { Flare, FlareCorner } from "base.slint";
 
 export enum Edge { top, bottom, left, right, bottom-right, top-right }
@@ -22,14 +23,16 @@ export component DrawerFrame inherits Rectangle {
     out property <length> full-width: root.edge == Edge.right || root.edge == Edge.left ? root.panel-width : root.edge == Edge.bottom-right || root.edge == Edge.top-right ? root.panel-width + root.flare : root.panel-width + root.flare * 2;
     out property <length> full-height: root.edge == Edge.right || root.edge == Edge.left ? root.panel-height + root.flare * 2 : root.edge == Edge.bottom-right || root.edge == Edge.top-right ? root.panel-height + root.flare : root.panel-height;
 
-    animate progress {
-        duration: root.open ? Theme.anim-normal : Theme.anim-small + 50ms;
-        easing: root.open ? cubic-bezier(0.05, 0.7, 0.1, 1) : cubic-bezier(0.3, 0, 0.8, 0.15);
-    }
+    // Caelestia: one spatial motion both ways (Rust hides the window after
+    // `anim-spatial`), so the panel springs out and tucks back in.
+    animate progress { duration: Theme.anim-spatial; easing: Motion.spatial; }
 
     property <bool> vertical: root.edge != Edge.right && root.edge != Edge.left;
-    // Visible extent of the panel along its growth axis.
-    property <length> extent: (root.vertical ? root.panel-height : root.panel-width) * root.progress;
+    // Free space the window keeps past the panel for the overshoot.
+    out property <length> room: Math.ceil((root.vertical ? root.panel-height : root.panel-width) * 0.02 / 1px) * 1px;
+    // Visible extent of the panel along its growth axis (the curve dips below
+    // 0 when closing too).
+    property <length> extent: Math.max(0, (root.vertical ? root.panel-height : root.panel-width) * root.progress);
     property <length> f: min(root.flare, root.extent);
     property <color> fill-col: Theme.base;
     property <length> cx0: (root.width - root.panel-width) / 2;
@@ -72,7 +75,7 @@ export component DrawerFrame inherits Rectangle {
         corner: FlareCorner.bottom-right; color: root.fill-col;
     }
     if root.edge == Edge.bottom-right: Flare {
-        x: root.width - self.width; y: root.flare + (root.panel-height - root.extent) - self.height; width: root.f; height: root.f;
+        x: root.width - self.width; y: root.height - root.extent - self.height; width: root.f; height: root.f;
         corner: FlareCorner.bottom-right; color: root.fill-col;
     }
 
@@ -94,7 +97,7 @@ export component DrawerFrame inherits Rectangle {
         y: root.edge == Edge.top || root.edge == Edge.top-right ? 0
             : root.edge == Edge.left ? (root.height - root.panel-height) / 2
             : root.edge == Edge.right ? root.flare
-            : root.edge == Edge.bottom-right ? root.flare + root.panel-height - root.extent
+            : root.edge == Edge.bottom-right ? root.height - root.extent
             : root.height - root.extent;
         width: root.vertical ? root.panel-width : root.extent;
         height: root.vertical ? root.extent : root.panel-height;

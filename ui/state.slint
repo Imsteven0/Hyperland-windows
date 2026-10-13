@@ -204,5 +204,8 @@ export global Shell {
 
     // UI -> Rust
     callback action(/* id */ string, /* arg */ string);
+    // A key with Ctrl/Alt/Win pressed in one of our focused windows (the
+    // global hook doesn't see those): true if it was a shell shortcut.
+    callback hotkey(/* key text */ string, /* ctrl */ bool, /* alt */ bool, /* shift */ bool, /* meta (Win) */ bool) -> bool;
     callback set-config(/* dotted path */ string, /* JSON value */ string);
 }

@@ -1,7 +1,7 @@
 // Top drawer (Caelestia modules/dashboard) with Dashboard / Media /
 // Performance / Weather tabs. Each tab has its own natural size and the panel
 // morphs between them (the native window stays put, sized for the largest).
-import { Theme } from "../theme.slint";
+import { Theme, Motion } from "../theme.slint";
 import { Shell, PluginWidget } from "../state.slint";
 import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, CircularProgress, LinearProgress, Card, StyledSlider } from "../components/base.slint";
 import { DrawerFrame, Edge } from "../components/drawer.slint";
@@ -496,7 +496,7 @@ component UsageCard inherits Card {
                 spacing: Theme.spacing-small;
                 MaterialIcon { text: "device_thermostat"; font-size: Theme.font-normal; color: root.temp == "N/A" ? Theme.c.outline : Theme.c.tertiary; }
                 if root.temp != "N/A" || root.help == "": StyledText { text: root.temp == "N/A" ? @tr("N/A") : root.temp; color: root.temp == "N/A" ? Theme.c.outline : Theme.c.on-surface; }
-                // No sensor: one click installs or starts LibreHardwareMonitor.
+                // No sensor: one click installs, starts or elevates LibreHardwareMonitor.
                 if root.temp == "N/A" && root.help != "": Rectangle {
                     height: 24px;
                     width: hint.preferred-width + 16px;
@@ -504,7 +504,7 @@ component UsageCard inherits Card {
                     background: Theme.layer(Theme.c.secondary-container, 3);
                     StateLayer { border-radius: parent.border-radius; tint: Theme.c.on-secondary-container; clicked => { Shell.action("cpu-temp", ""); } }
                     hint := StyledText {
-                        text: root.help == "install" ? @tr("Install LibreHardwareMonitor") : @tr("Start LibreHardwareMonitor");
+                        text: root.help == "install" ? @tr("Install LibreHardwareMonitor") : root.help == "admin" ? @tr("Run LibreHardwareMonitor as admin") : @tr("Start LibreHardwareMonitor");
                         font-size: Theme.font-small;
                         color: Theme.c.on-secondary-container;
                         horizontal-alignment: center;
@@ -788,11 +788,11 @@ export component DashboardWindow inherits Window {
     // in place as the panel finishes morphing (Caelestia's swipe feel).
     property <length> pw: root.sizes[root.tab].w;
     property <length> ph: root.sizes[root.tab].h;
-    animate pw, ph { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+    animate pw, ph { duration: Theme.anim-spatial; easing: Motion.spatial; }
     // Animated tab position (float) drives the indicator and page dimming
     // without depending on the morphing width (no animation restarts).
     property <float> pos: root.tab;
-    animate pos { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+    animate pos { duration: Theme.anim-spatial; easing: Motion.spatial; }
 
     property <length> page-gap: Theme.padding-large * 2;
     pure function inner-w(i: int) -> length { root.sizes[i].w - Theme.padding-large * 2 }
@@ -804,8 +804,9 @@ export component DashboardWindow inherits Window {
             : root.inner-w(0) + root.inner-w(1) + root.inner-w(2) + root.page-gap * 3
     }
 
-    width: 900px + Theme.t.border-rounding * 2;
-    height: 444px + root.plugin-row;
+    // Fixed size (the largest tab), plus 2% for the spatial overshoot.
+    width: 900px + 4px + Theme.t.border-rounding * 2;
+    height: 444px + root.plugin-row + 10px;
 
     frame := DrawerFrame {
         edge: Edge.top;
@@ -867,7 +868,7 @@ export component DashboardWindow inherits Window {
                     y: 0;
                     width: root.slot(3) + root.inner-w(3);
                     height: pages.height;
-                    animate x { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+                    animate x { duration: Theme.anim-spatial; easing: Motion.spatial; }
                     for page in 4: Rectangle {
                         x: root.slot(page);
                         y: 0;

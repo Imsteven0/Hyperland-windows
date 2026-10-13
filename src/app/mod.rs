@@ -13,7 +13,7 @@ use std::{
 use anyhow::Result;
 use chrono::{Datelike, Local, NaiveDate};
 use serde_json::Value;
-use slint::{ComponentHandle, Image, ModelRc, PhysicalPosition, SharedString, Timer, TimerMode, VecModel};
+use slint::{ComponentHandle, Image, ModelRc, PhysicalPosition, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer, TimerMode, VecModel};
 
 use crate::{
     AppEntry, AudioDevice as UiAudioDevice, NotifGroup, NotifItem, PickerEntry, PluginWidget, SidebarWindow, Place, BarWindow, BtDevice as UiBtDevice, BorderWindow, CalendarDay, DashboardWindow, ForecastDay, InfoRow, LauncherWindow, MediaInfo, PopoutWindow, Recording, SessionWindow,
@@ -117,6 +117,15 @@ struct DrawerState {
     generation: u32,
     /// Index into `screens` the drawer is shown on.
     screen: usize,
+}
+
+#[derive(Default)]
+struct PopoutMotion {
+    x: i32,
+    y: f32,
+    vel: f32,
+    target: f32,
+    last: Option<Instant>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -283,6 +292,10 @@ pub struct Caelestia {
     /// session, popout, settings, sidebar), created lazily.
     blur_panes: RefCell<Vec<Option<crate::platform::blur::BlurPane>>>,
     blur_timer: Timer,
+    /// The bar popout gliding between items (physical px); `popout_timer`
+    /// steps it only while it moves.
+    popout_motion: RefCell<PopoutMotion>,
+    popout_timer: Timer,
     /// App icons for the bar's workspaces.
     icons: IconCache,
     /// Click-through for WebView2 overlays left behind by hidden apps.
@@ -390,6 +403,8 @@ impl Caelestia {
             settings_thumb_timer: Timer::default(),
             blur_panes: RefCell::new((0..7).map(|_| None).collect()),
             blur_timer: Timer::default(),
+            popout_motion: RefCell::new(PopoutMotion::default()),
+            popout_timer: Timer::default(),
             ghosts: RefCell::new(crate::platform::ghosts::GhostGuard::with_state(paths.state_dir.join("click-through.json"))),
             icons: IconCache::new(40, |key, buf| {
                 post(move |app| {

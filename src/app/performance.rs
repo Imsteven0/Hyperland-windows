@@ -31,7 +31,9 @@ impl Caelestia {
         };
         let changed = self.st.borrow_mut().perf.update(perf::decide(policy, inputs));
         if let Some(state) = changed {
-            log::info!("performance mode: {}", state.map(PerfReason::id).unwrap_or("off"));
+            // Name the app for full screen: a false positive is then easy to spot.
+            let app = if state == Some(PerfReason::Fullscreen) { desktops::window_info(win::foreground_window()).map(|i| format!(" ({})", i.app)) } else { None };
+            log::info!("performance mode: {}{}", state.map(PerfReason::id).unwrap_or("off"), app.unwrap_or_default());
             self.apply_config(); // also re-applies the bar blur
             if state.is_some() {
                 self.update_blur(); // hides the panes now; the loop stops itself

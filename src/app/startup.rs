@@ -18,12 +18,7 @@ impl Caelestia {
         });
         crate::ipc::listen(|cmd| post(move |app| app.on_ipc(cmd)));
         komorebi::spawn_watcher(|status| post(move |app| app.on_komorebi(status)));
-        let weak = self.weak.clone();
-        if let Some(hk) = Hotkeys::new(move |target| {
-            if let Some(app) = weak.upgrade() {
-                app.on_hotkey(&target);
-            }
-        }) {
+        if let Some(hk) = Hotkeys::new(|target| post(move |app| app.on_hotkey(&target))) {
             *self.hotkeys.borrow_mut() = Some(hk);
             self.bind_hotkeys();
         }
@@ -134,6 +129,12 @@ impl Caelestia {
                     _ => app.action(&id, &arg),
                 }
             }
+        });
+        g.on_hotkey(|text, ctrl, alt, shift, meta| {
+            let Some(target) = crate::hotkeys::local_target(&text, ctrl, alt, shift, meta) else { return false };
+            // After Slint finishes this key event: the action may close the window.
+            post(move |app| app.on_hotkey(&target));
+            true
         });
         let weak = self.weak.clone();
         g.on_set_config(move |path, json| {
@@ -261,6 +262,23 @@ impl Caelestia {
                 EventResult::Propagate
             });
         }
+
+        // Settings too, when another app takes focus. Its own dialogs (folder
+        // pickers) and our other surfaces belong to this process: they don't count.
+        let weak = self.weak.clone();
+        self.settings.window().on_winit_window_event(move |_, ev| {
+            if let WindowEvent::Focused(false) = ev {
+                let weak = weak.clone();
+                Timer::single_shot(Duration::from_millis(120), move || {
+                    if let Some(app) = weak.upgrade()
+                        && desktops::window_info(win::foreground_window()).is_some()
+                    {
+                        app.toggle_settings(Some(false));
+                    }
+                });
+            }
+            EventResult::Propagate
+        });
 
         // Settings window
         let weak = self.weak.clone();

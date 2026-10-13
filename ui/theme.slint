@@ -129,4 +129,29 @@ export global Theme {
     out property <duration> anim-normal: 400ms * t.anim-scale;
     out property <duration> anim-large: 600ms * t.anim-scale;
     out property <duration> anim-extra-large: 1000ms * t.anim-scale;
+    // Material 3 Expressive (Caelestia's Anim types): spatial = position/size,
+    // effects = opacity/colour. Pair each with the same-named Motion curve.
+    out property <duration> anim-fast-spatial: 350ms * t.anim-scale;
+    out property <duration> anim-spatial: 500ms * t.anim-scale;
+    out property <duration> anim-slow-spatial: 650ms * t.anim-scale;
+    out property <duration> anim-fast-effects: 150ms * t.anim-scale;
+    out property <duration> anim-effects: 200ms * t.anim-scale;
+    out property <duration> anim-slow-effects: 300ms * t.anim-scale;
+}
+
+// Easing curves (Caelestia's tokens). Not exported to Rust: `easing`
+// properties can't cross the public API. Spatial curves overshoot a little
+// (default 1.4%, fast 9%): give moving surfaces that much room.
+export global Motion {
+    out property <easing> standard: cubic-bezier(0.2, 0, 0, 1);
+    out property <easing> standard-accel: cubic-bezier(0.3, 0, 1, 1);
+    out property <easing> standard-decel: cubic-bezier(0, 0, 0, 1);
+    out property <easing> emphasized-accel: cubic-bezier(0.3, 0, 0.8, 0.15);
+    out property <easing> emphasized-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+    out property <easing> fast-spatial: cubic-bezier(0.42, 1.67, 0.21, 0.9);
+    out property <easing> spatial: cubic-bezier(0.38, 1.21, 0.22, 1);
+    out property <easing> slow-spatial: cubic-bezier(0.39, 1.29, 0.35, 0.98);
+    out property <easing> fast-effects: cubic-bezier(0.31, 0.94, 0.34, 1);
+    out property <easing> effects: cubic-bezier(0.34, 0.8, 0.34, 1);
+    out property <easing> slow-effects: cubic-bezier(0.34, 0.88, 0.34, 1);
 }

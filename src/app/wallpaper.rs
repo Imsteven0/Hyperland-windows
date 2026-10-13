@@ -144,7 +144,7 @@ impl Caelestia {
         std::thread::spawn(move || {
             crate::platform::com_init(true);
             for (i, p) in req_rx {
-                if let Some(buf) = path_thumbnail(&p, px, false) {
+                if let Some(buf) = wallpaper_thumbnail(&p, px) {
                     if tx.send((i, buf)).is_err() {
                         return;
                     }
@@ -187,12 +187,21 @@ impl Caelestia {
     pub(super) fn update_wallpaper_preview(&self) {
         let Some(path) = self.st.borrow().wallpaper.clone() else { return };
         let px = (320.0 * self.primary_scale()) as i32;
-        // Shell thumbnails are cached by Explorer and decode quickly.
-        let buf = path_thumbnail(&path, px, false);
-        self.settings.set_has_wallpaper_preview(buf.is_some());
-        if let Some(buf) = buf {
-            self.settings.set_wallpaper_preview(Image::from_rgba8_premultiplied(buf));
-        }
+        // Off the UI thread: without a shell thumbnail the file is decoded here.
+        std::thread::spawn(move || {
+            crate::platform::com_init(true);
+            let buf = wallpaper_thumbnail(&path, px);
+            post(move |app| {
+                // Changed again meanwhile: that newer preview wins.
+                if app.st.borrow().wallpaper.as_ref() != Some(&path) {
+                    return;
+                }
+                app.settings.set_has_wallpaper_preview(buf.is_some());
+                if let Some(buf) = buf {
+                    app.settings.set_wallpaper_preview(Image::from_rgba8_premultiplied(buf));
+                }
+            });
+        });
     }
 
     pub(super) fn random_wallpaper(&self) {
@@ -264,7 +273,7 @@ impl Caelestia {
         std::thread::spawn(move || {
             crate::platform::com_init(true);
             for (i, p) in jobs {
-                if let Some(buf) = path_thumbnail(&p, px, false) {
+                if let Some(buf) = wallpaper_thumbnail(&p, px) {
                     if tx.send((i, buf)).is_err() {
                         return;
                     }

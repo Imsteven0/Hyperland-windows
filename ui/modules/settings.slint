@@ -1,7 +1,7 @@
 // Floating customisation panel (screenshots 1 & 2). Every control writes back
 // to shell.json through `Shell.set-config(path, json)`; Rust persists the file
 // (keeping unknown keys intact) and the hot-reload loop restyles the shell.
-import { Theme } from "../theme.slint";
+import { Theme, Motion } from "../theme.slint";
 import { Shell, InfoRow, UiConfig, SchemeCard, WallpaperEntry } from "../state.slint";
 import { AudioDeviceList, BtDeviceList } from "../components/devices.slint";
 import { LocationPicker } from "../components/location.slint";
@@ -894,6 +894,23 @@ export component SettingsWindow inherits Window {
     height: 625px;
 
     in-out property <int> page: 0;
+    // Caelestia's AnimLoader: the old page fades out, swaps, the new one fades in.
+    property <int> shown-page: 0; // set only by page-swap, never bound (it must lag)
+    property <float> page-alpha: 1;
+    animate page-alpha { duration: root.shown-page != root.page ? Theme.anim-fast-effects : Theme.anim-effects; easing: Motion.effects; }
+    changed page => {
+        root.page-alpha = 0;
+        page-swap.running = true;
+    }
+    page-swap := Timer {
+        interval: Math.max(1ms, Theme.anim-fast-effects);
+        running: false;
+        triggered => {
+            self.running = false;
+            root.shown-page = root.page;
+            root.page-alpha = 1;
+        }
+    }
     in property <[bool]> nav-match;          // empty = everything matches
     in property <image> wallpaper-preview;
     in property <bool> has-wallpaper-preview;
@@ -924,6 +941,14 @@ export component SettingsWindow inherits Window {
         { icon: "info", title: @tr("About"), subtitle: @tr("System information, credits"), group: 4 },
     ];
 
+    // Shell shortcuts while Settings has focus (the global hook doesn't see them).
+    FocusScope {
+    focus-on-click: false;
+    init => { self.focus(); } // keys reach it even before a field is clicked
+    capture-key-pressed(e) => {
+        if (e.modifiers.control || e.modifiers.alt || e.modifiers.meta) && Shell.hotkey(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta) { return accept; }
+        reject
+    }
     Rectangle {
         opacity: root.shown ? 1 : 0;
         transform-scale: root.shown ? 1 : 0.94;
@@ -1041,8 +1066,9 @@ export component SettingsWindow inherits Window {
                         vertical-stretch: 1;
                         content-height: pagecol.preferred-height;
                         pagecol := VerticalLayout {
+                            opacity: root.page-alpha;
                             padding-bottom: Theme.padding-large;
-                            if root.page == 0: WallpaperPage {
+                            if root.shown-page == 0: WallpaperPage {
                                 preview: root.wallpaper-preview;
                                 has-preview: root.has-wallpaper-preview;
                                 schemes: root.schemes;
@@ -1051,19 +1077,20 @@ export component SettingsWindow inherits Window {
                                 wallpaper-dir: root.wallpaper-dir;
                                 view <=> root.style-view;
                             }
-                            if root.page == 1: NetworkPage { }
-                            if root.page == 2: DevicesPage { }
-                            if root.page == 3: AudioPage { }
-                            if root.page == 4: UpdatesPage { }
-                            if root.page == 5: PluginsPage { }
-                            if root.page == 6: PanelsPage { }
-                            if root.page == 7: ServicesPage { }
-                            if root.page == 8: LanguagePage { }
-                            if root.page == 9: AboutPage { system: root.about-system; software: root.about-software; version: root.version; }
+                            if root.shown-page == 1: NetworkPage { }
+                            if root.shown-page == 2: DevicesPage { }
+                            if root.shown-page == 3: AudioPage { }
+                            if root.shown-page == 4: UpdatesPage { }
+                            if root.shown-page == 5: PluginsPage { }
+                            if root.shown-page == 6: PanelsPage { }
+                            if root.shown-page == 7: ServicesPage { }
+                            if root.shown-page == 8: LanguagePage { }
+                            if root.shown-page == 9: AboutPage { system: root.about-system; software: root.about-software; version: root.version; }
                         }
                     }
                 }
             }
         }
+    }
     }
 }

@@ -287,7 +287,7 @@ pub fn fullscreen_foreground() -> bool {
         Graphics::Gdi::{MONITOR_DEFAULTTONULL, MonitorFromWindow},
         UI::{
             Shell::{QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState},
-            WindowsAndMessaging::{GWL_STYLE, GetClassNameW, GetWindowRect, IsWindowVisible, WS_CAPTION},
+            WindowsAndMessaging::{GWL_STYLE, GetClassNameW, GetWindowRect, IsWindowVisible, IsZoomed, WS_CAPTION},
         },
     };
     let hwnd = foreground_window();
@@ -300,16 +300,24 @@ pub fn fullscreen_foreground() -> bool {
         if pid == std::process::id() {
             return false; // our own drawers
         }
+        let mut class = [0u16; 64];
+        let n = GetClassNameW(hwnd, &mut class) as usize;
+        // The desktop itself, and shell overlays that cover the monitor without a
+        // caption: Task View / Alt+Tab (Win+Tab, or Cmd+Tab passed on by a VM),
+        // Start, search.
+        if matches!(
+            String::from_utf16_lossy(&class[..n]).as_str(),
+            "Progman" | "WorkerW" | "Shell_TrayWnd" | "XamlExplorerHostIslandWindow" | "MultitaskingViewFrame" | "TaskSwitcherWnd" | "Windows.UI.Core.CoreWindow"
+        ) {
+            return false;
+        }
         if matches!(SHQueryUserNotificationState(), Ok(QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)) {
             return true;
         }
-        if !IsWindowVisible(hwnd).as_bool() || GetWindowLongPtrW(hwnd, GWL_STYLE) as u32 & WS_CAPTION.0 == WS_CAPTION.0 {
-            return false; // maximised windows keep their caption
-        }
-        let mut class = [0u16; 32];
-        let n = GetClassNameW(hwnd, &mut class) as usize;
-        if matches!(String::from_utf16_lossy(&class[..n]).as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd") {
-            return false; // the desktop itself
+        // Maximised windows keep their caption, except UWP frames
+        // (ApplicationFrameHost) that draw their own: check both.
+        if !IsWindowVisible(hwnd).as_bool() || IsZoomed(hwnd).as_bool() || GetWindowLongPtrW(hwnd, GWL_STYLE) as u32 & WS_CAPTION.0 == WS_CAPTION.0 {
+            return false;
         }
         let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
         if hmon.is_invalid() {

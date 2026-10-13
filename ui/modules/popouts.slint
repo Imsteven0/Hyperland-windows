@@ -1,7 +1,7 @@
 // Bar popouts (Caelestia modules/bar/popouts): a panel that grows out of the
 // bar next to the hovered item — audio, network, bluetooth, battery,
 // calendar and active window. Rust positions it vertically on the item.
-import { Theme } from "../theme.slint";
+import { Theme, Motion } from "../theme.slint";
 import { Shell } from "../state.slint";
 import { StyledText, MaterialIcon, IconButton, ButtonKind, StyledSwitch, StyledSlider, TextButton, Separator } from "../components/base.slint";
 import { DrawerFrame, Edge } from "../components/drawer.slint";
@@ -167,11 +167,14 @@ export component PopoutWindow inherits Window {
 
     in-out property <bool> open;
     in property <string> kind: "audio";
+    // Squash & stretch while gliding between bar items (Rust: from the
+    // spring's speed). Taller and narrower, anchored on the bar side.
+    in property <float> stretch: 1;
 
     out property <length> blur-x: frame.panel-x;
-    out property <length> blur-y: frame.panel-y;
-    out property <length> blur-w: frame.panel-w;
-    out property <length> blur-h: frame.panel-h;
+    out property <length> blur-y: frame.panel-y - frame.panel-h * (root.stretch - 1) / 2;
+    out property <length> blur-w: frame.panel-w / root.stretch;
+    out property <length> blur-h: frame.panel-h * root.stretch;
 
     public pure function panel-width-for(k: string) -> length {
         k == "calendar" ? 270px : k == "activewindow" ? 320px : k == "audio" || k == "bluetooth" ? 330px : k == "network" ? 300px : 280px
@@ -185,15 +188,18 @@ export component PopoutWindow inherits Window {
     // The panel morphs between items like Caelestia's popouts.
     property <length> pw: root.panel-width-for(root.kind);
     property <length> ph: root.panel-height-for(root.kind);
-    animate pw, ph { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
+    animate pw, ph { duration: Theme.anim-spatial; easing: Motion.spatial; }
 
     // Fixed native window (largest panel + flares); Rust centres it on the item.
-    out property <length> want-width: 330px;
+    out property <length> want-width: 330px + 8px; // + spatial overshoot
     out property <length> want-height: 560px + Theme.t.border-rounding * 2;
     width: root.want-width;
     height: root.want-height;
 
     frame := DrawerFrame {
+        transform-origin: { x: 0, y: self.height / 2 };
+        transform-scale-x: 1 / root.stretch;
+        transform-scale-y: root.stretch;
         edge: Edge.left;
         open: root.open;
         panel-width: root.pw;

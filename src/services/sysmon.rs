@@ -92,7 +92,8 @@ fn run(active: Arc<AtomicBool>, interval_ms: Arc<AtomicU64>, disk_index: Arc<Ato
     let (gpu_name, gpu_luid) = gpu_adapter();
     let gpu_temp = gpu_luid.and_then(super::temps::GpuTemp::open);
     let mut cpu_temp = super::temps::CpuTemp::new();
-    let mut temp_help: &'static str = "";
+    let mut temp_help: Option<&'static str> = None;
+    let mut had_temp = false;
     let system_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into());
     let mut down_hist: VecDeque<f64> = VecDeque::from(vec![0.0; 30]);
     let mut up_hist: VecDeque<f64> = VecDeque::from(vec![0.0; 30]);
@@ -170,20 +171,27 @@ fn run(active: Arc<AtomicBool>, interval_ms: Arc<AtomicU64>, disk_index: Arc<Ato
             gpu: gpu.as_mut().and_then(GpuCounter::sample),
             gpu_name: gpu_name.clone(),
             cpu_temp: {
+                // Without a reading, re-check LibreHardwareMonitor's state every
+                // ~10 samples only (a process listing and a folder scan).
+                let lhm = (!had_temp && (temp_help.is_none() || tick % 10 == 1)).then(|| (super::temps::lhm_path().is_some(), super::temps::lhm_running()));
+                if matches!(lhm, Some((_, true))) && !cpu_temp.lhm_connected() {
+                    cpu_temp.probe_now(); // just started: don't wait out the retry delay
+                }
                 let t = cpu_temp.read();
-                // Re-check LibreHardwareMonitor's state every ~10 samples only.
+                had_temp = t.is_some();
                 if t.is_some() {
-                    temp_help = "";
-                } else if tick % 10 == 1 || temp_help.is_empty() {
-                    temp_help = match super::temps::lhm_path() {
-                        None => "install",
-                        Some(_) if super::temps::lhm_running() => "",
-                        Some(_) => "start",
-                    };
+                    temp_help = Some("");
+                } else if let Some((installed, running)) = lhm {
+                    temp_help = Some(match (installed, running) {
+                        (_, true) if cpu_temp.lhm_connected() => "", // no CPU sensor (VM): N/A is right
+                        (_, true) => "admin", // running without admin: no sensor driver loaded
+                        (false, false) => "install",
+                        (true, false) => "start",
+                    });
                 }
                 t
             },
-            cpu_temp_help: temp_help,
+            cpu_temp_help: temp_help.unwrap_or(""),
             gpu_temp: gpu_temp.as_ref().and_then(|g| g.read()),
             mem_used: sys.used_memory(),
             mem_total: sys.total_memory(),

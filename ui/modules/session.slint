@@ -32,7 +32,7 @@ export component SessionWindow inherits Window {
     property <length> panel-w: root.btn + Theme.padding-large * 2;
     property <length> panel-h: root.items.length * (root.btn + Theme.spacing-large) - Theme.spacing-large + Theme.padding-large * 2;
 
-    width: root.panel-w;
+    width: root.panel-w + frame.room;
     height: root.panel-h + Theme.t.border-rounding * 2;
 
     frame := DrawerFrame {
@@ -43,6 +43,7 @@ export component SessionWindow inherits Window {
 
         keys := FocusScope {
             key-pressed(e) => {
+                if (e.modifiers.control || e.modifiers.alt || e.modifiers.meta) && Shell.hotkey(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta) { return accept; }
                 if e.text == Key.Escape { root.dismiss(); return accept; }
                 if e.text == Key.UpArrow { root.focused = max(0, root.focused - 1); return accept; }
                 if e.text == Key.DownArrow { root.focused = min(root.items.length - 1, root.focused + 1); return accept; }

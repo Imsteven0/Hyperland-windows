@@ -79,11 +79,19 @@ impl Caelestia {
             }
             "popout" => self.show_popout(arg),
             "cpu-temp" => match crate::services::temps::lhm_path() {
-                // LibreHardwareMonitor needs admin rights to load its sensor driver.
-                Some(exe) => unsafe {
-                    use windows::{Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWMINNOACTIVE}, core::{HSTRING, PCWSTR}};
-                    let _ = ShellExecuteW(None, &HSTRING::from("runas"), &HSTRING::from(exe.as_os_str()), PCWSTR::null(), PCWSTR::null(), SW_SHOWMINNOACTIVE);
-                },
+                // LibreHardwareMonitor needs admin rights to load its sensor driver;
+                // a copy already running without them is replaced (off the UI thread).
+                Some(exe) => {
+                    std::thread::spawn(move || unsafe {
+                        use std::os::windows::process::CommandExt;
+                        use windows::{Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWMINNOACTIVE}, core::{HSTRING, PCWSTR}};
+                        if crate::services::temps::lhm_running() {
+                            let _ = std::process::Command::new("taskkill").args(["/f", "/im", "LibreHardwareMonitor.exe"]).creation_flags(0x0800_0000).status();
+                        }
+                        crate::platform::com_init(true);
+                        let _ = ShellExecuteW(None, &HSTRING::from("runas"), &HSTRING::from(exe.as_os_str()), PCWSTR::null(), PCWSTR::null(), SW_SHOWMINNOACTIVE);
+                    });
+                }
                 None => system::spawn(&["cmd".into(), "/c".into(), "start".into(), "cmd".into(), "/k".into(), "winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e".into()]),
             },
             "calendar" => {
