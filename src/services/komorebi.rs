@@ -194,9 +194,22 @@ pub struct Synced {
 /// Merges our managed keys into `komorebi.json`, keeping everything else the
 /// user configured.
 pub fn sync_config(v: &Visuals) -> anyhow::Result<Synced> {
-    use serde_json::json;
     let path = config_path();
     let old_text = std::fs::read_to_string(&path).unwrap_or_default();
+    // Community app fixes (fetched once with `komorebic fetch-app-specific-configuration`).
+    let asc = Some(path.with_file_name("applications.json")).filter(|p| p.is_file());
+    let (new_text, synced) = merge_visuals(&old_text, v, asc.as_deref())?;
+    if synced != Synced::default() {
+        std::fs::write(&path, new_text)?;
+    }
+    Ok(synced)
+}
+
+/// The new `komorebi.json` text for `v`, and what changed relative to
+/// `old_text`. Only a structural change may trigger `replace-configuration`
+/// (which re-lays out every window); a colour change never does.
+fn merge_visuals(old_text: &str, v: &Visuals, app_specific: Option<&std::path::Path>) -> anyhow::Result<(String, Synced)> {
+    use serde_json::json;
     let mut cfg: Value = if old_text.trim().is_empty() {
         json!({ "$schema": "https://raw.githubusercontent.com/LGUG2Z/komorebi/v0.1.41/schema.json" })
     } else {
@@ -268,17 +281,15 @@ pub fn sync_config(v: &Visuals) -> anyhow::Result<Synced> {
             }
         }
     }
-    // Community app fixes (fetched once with `komorebic fetch-app-specific-configuration`).
-    let asc = path.with_file_name("applications.json");
-    if asc.is_file() && !obj.contains_key("app_specific_configuration_path") {
-        obj.insert("app_specific_configuration_path".into(), json!(asc.display().to_string()));
+    if let Some(asc) = app_specific {
+        if !obj.contains_key("app_specific_configuration_path") {
+            obj.insert("app_specific_configuration_path".into(), json!(asc.display().to_string()));
+        }
     }
-    let new_text = serde_json::to_string_pretty(&cfg)? + "
-";
+    let new_text = serde_json::to_string_pretty(&cfg)? + "\n";
     if new_text == old_text {
-        return Ok(Synced::default());
+        return Ok((new_text, Synced::default()));
     }
-    std::fs::write(&path, new_text)?;
     let without_colours = |v: &Value| {
         let mut v = v.clone();
         if let Some(o) = v.as_object_mut() {
@@ -286,10 +297,11 @@ pub fn sync_config(v: &Visuals) -> anyhow::Result<Synced> {
         }
         v
     };
-    Ok(Synced {
+    let synced = Synced {
         structure: old_text.trim().is_empty() || without_colours(&old) != without_colours(&cfg),
         colours: old.get("border_colours") != cfg.get("border_colours"),
-    })
+    };
+    Ok((new_text, synced))
 }
 
 /// Applies border colours to a running komorebi without reloading its
@@ -514,6 +526,99 @@ pub fn default_binds() -> Vec<(&'static str, String)> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn visuals() -> Visuals {
+        Visuals {
+            workspace_padding: 10,
+            container_padding: 10,
+            borders: true,
+            border_width: 3,
+            border_offset: 0,
+            colours: vec![("single", "#b5c4ff".into()), ("unfocused", "#45464f".into())],
+            animations: true,
+            animation_ms: 250,
+            workspaces: 3,
+            monitors: 2,
+            layered_apps: vec!["*".into(), "claude.exe".into()],
+        }
+    }
+
+    fn json(text: &str) -> Value {
+        serde_json::from_str(text).unwrap()
+    }
+
+    #[test]
+    fn first_sync_writes_everything_and_is_structural() {
+        let (text, synced) = merge_visuals("", &visuals(), None).unwrap();
+        assert_eq!(synced, Synced { structure: true, colours: true });
+        let cfg = json(&text);
+        assert_eq!(cfg["default_workspace_padding"], 10);
+        assert_eq!(cfg["border_colours"]["single"], "#b5c4ff");
+        assert_eq!(cfg["monitors"].as_array().unwrap().len(), 2);
+        assert_eq!(cfg["monitors"][0]["workspaces"].as_array().unwrap().len(), 3);
+        assert!(cfg["ignore_rules"].as_array().unwrap().iter().any(|r| r["id"] == "caelestia.exe"));
+        assert!(cfg["layered_applications"].as_array().unwrap().iter().any(|r| r["id"] == ".*"));
+    }
+
+    #[test]
+    fn syncing_twice_changes_nothing() {
+        let (text, _) = merge_visuals("", &visuals(), None).unwrap();
+        let (again, synced) = merge_visuals(&text, &visuals(), None).unwrap();
+        assert_eq!(synced, Synced::default());
+        assert_eq!(again, text);
+    }
+
+    /// A wallpaper/scheme change only recolours borders: komorebi must not
+    /// reload its configuration, which re-lays out (reorders) every window.
+    #[test]
+    fn colour_changes_are_not_structural() {
+        let (text, _) = merge_visuals("", &visuals(), None).unwrap();
+        let mut v = visuals();
+        v.colours[0].1 = "#ff8800".into();
+        let (_, synced) = merge_visuals(&text, &v, None).unwrap();
+        assert_eq!(synced, Synced { structure: false, colours: true });
+    }
+
+    #[test]
+    fn layout_changes_are_structural() {
+        let (text, _) = merge_visuals("", &visuals(), None).unwrap();
+        let mut v = visuals();
+        v.container_padding = 20;
+        let (_, synced) = merge_visuals(&text, &v, None).unwrap();
+        assert_eq!(synced, Synced { structure: true, colours: false });
+    }
+
+    #[test]
+    fn keeps_the_users_own_settings_and_layout() {
+        let user = r#"{
+            "float_rules": [{ "kind": "Exe", "id": "calc.exe", "matching_strategy": "Equals" }],
+            "theme": { "palette": "Catppuccin" },
+            "monitors": [{ "workspaces": [{ "name": "code", "layout": "VerticalStack" }] }],
+            "ignore_rules": [{ "kind": "Exe", "id": "caelestia.exe", "matching_strategy": "Equals" }]
+        }"#;
+        let (text, _) = merge_visuals(user, &visuals(), None).unwrap();
+        let cfg = json(&text);
+        assert_eq!(cfg["float_rules"][0]["id"], "calc.exe");
+        assert!(cfg.get("theme").is_none(), "a komorebi theme would override our border colours");
+        assert_eq!(cfg["monitors"].as_array().unwrap().len(), 1, "user layouts are never extended");
+        assert_eq!(cfg["monitors"][0]["workspaces"][0]["name"], "code");
+        assert_eq!(cfg["ignore_rules"].as_array().unwrap().len(), 1, "no duplicate rule");
+    }
+
+    #[test]
+    fn adds_monitors_to_our_generated_layout_only() {
+        let (text, _) = merge_visuals("", &Visuals { monitors: 1, ..visuals() }, None).unwrap();
+        assert_eq!(json(&text)["monitors"].as_array().unwrap().len(), 1);
+        let (text, synced) = merge_visuals(&text, &Visuals { monitors: 3, ..visuals() }, None).unwrap();
+        assert_eq!(json(&text)["monitors"].as_array().unwrap().len(), 3);
+        assert!(synced.structure);
+    }
+
+    #[test]
+    fn rejects_invalid_files_instead_of_overwriting_them() {
+        assert!(merge_visuals("{ not json", &visuals(), None).is_err());
+        assert!(merge_visuals("[1, 2]", &visuals(), None).is_err());
+    }
 
     #[test]
     fn parses_rings_and_occupancy() {

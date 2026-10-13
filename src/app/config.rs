@@ -166,11 +166,7 @@ impl Caelestia {
     }
 
     pub(super) fn set_config(&self, path: &str, json: &str) {
-        // Slider values arrive locale-formatted ("0,85" in Spanish): keep them numeric.
-        let value: Value = serde_json::from_str(json)
-            .ok()
-            .or_else(|| parse_num::<f64>(json).and_then(serde_json::Number::from_f64).map(Value::Number))
-            .unwrap_or_else(|| Value::String(json.to_owned()));
+        let value = ui_value(json);
         match path {
             "@wifi" => return self.radio(RadioCmd::ToggleWifi),
             "@bluetooth" => return self.radio(RadioCmd::ToggleBluetooth),
@@ -186,12 +182,7 @@ impl Caelestia {
             "services.scheme.variant" => return self.set_scheme(value.as_str().map(str::to_owned), None),
             _ => {}
         }
-        // Integral settings stay integers in the file (nicer diffs for shared dots).
-        let value = match value {
-            Value::Number(n) if n.as_f64().is_some_and(|f| f.fract() == 0.0 && is_integral_key(path)) => Value::from(n.as_f64().unwrap() as i64),
-            Value::Number(n) => Value::from((n.as_f64().unwrap_or(0.0) * 1000.0).round() / 1000.0),
-            v => v,
-        };
+        let value = normalize_number(path, value);
         let result = {
             let mut cfg = self.cfg.borrow_mut();
             cfg.set(path, value).and_then(|_| cfg.save())

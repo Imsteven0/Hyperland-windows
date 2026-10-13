@@ -616,14 +616,14 @@ component PanelsPage inherits VerticalLayout {
     spacing: 2px;
     SectionLabel { text: @tr("Bar"); }
     SwitchRow { first: true; title: @tr("Reserve screen space"); subtitle: @tr("Maximised windows stay clear of the bar"); key: "bar.persistent"; value: Shell.cfg.bar-persistent; }
-    SwitchRow { title: @tr("Workspaces"); key: "bar.workspaces.enabled"; value: Shell.cfg.bar-show-workspaces; }
+    SwitchRow { title: @tr("Workspaces"); key: "bar.entries.workspaces"; value: Shell.cfg.bar-show-workspaces; }
     SwitchRow { title: @tr("Workspace switch animation"); subtitle: @tr("The active indicator stretches towards the new workspace"); key: "bar.workspaces.activeTrail"; value: Shell.cfg.bar-active-trail; }
     SliderRow { title: @tr("Workspaces shown"); key: "bar.workspaces.shown"; value: Shell.cfg.bar-workspaces-shown; minimum: 1; maximum: 10; step: 1; decimals: 0; }
-    SwitchRow { title: @tr("Active window"); key: "bar.activeWindow.enabled"; value: Shell.cfg.bar-show-active-window; }
-    SwitchRow { title: @tr("Clock"); key: "bar.clock.enabled"; value: Shell.cfg.bar-show-clock; }
-    SwitchRow { title: @tr("Status icons"); key: "bar.status.enabled"; value: Shell.cfg.bar-show-status; }
+    SwitchRow { title: @tr("Active window"); key: "bar.entries.activeWindow"; value: Shell.cfg.bar-show-active-window; }
+    SwitchRow { title: @tr("Clock"); key: "bar.entries.clock"; value: Shell.cfg.bar-show-clock; }
+    SwitchRow { title: @tr("Status icons"); key: "bar.entries.statusIcons"; value: Shell.cfg.bar-show-status; }
     SwitchRow { title: @tr("Notifications icon"); subtitle: @tr("Bell with the number of notifications; opens the notification center"); key: "bar.status.showNotifications"; value: Shell.cfg.bar-show-notifications; }
-    SwitchRow { last: true; title: @tr("Power button"); key: "bar.power.enabled"; value: Shell.cfg.bar-show-power; }
+    SwitchRow { last: true; title: @tr("Power button"); key: "bar.entries.power"; value: Shell.cfg.bar-show-power; }
     SectionLabel { text: @tr("Border"); }
     SliderRow { first: true; title: @tr("Thickness"); key: "border.thickness"; value: Shell.cfg.border-thickness; minimum: 0; maximum: 30; step: 1; decimals: 0; }
     SliderRow { last: true; title: @tr("Rounding"); key: "border.rounding"; value: Shell.cfg.border-rounding; minimum: 0; maximum: 50; step: 1; decimals: 0; }

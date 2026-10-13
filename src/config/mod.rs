@@ -254,6 +254,137 @@ mod tests {
         assert_eq!(base, json!({ "a": { "b": 5, "c": 2, "x": true }, "y": 1 }));
     }
 
+    fn temp_paths(name: &str) -> Paths {
+        let root = std::env::temp_dir().join(format!("caelestia-config-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        Paths {
+            shell_json: root.join("config").join("shell.json"),
+            scheme_json: root.join("state").join("scheme.json"),
+            config_dir: root.join("config"),
+            state_dir: root.join("state"),
+            cache_dir: root.join("cache"),
+        }
+    }
+
+    #[test]
+    fn first_run_writes_the_full_defaults() {
+        let paths = temp_paths("first");
+        let cfg = Config::load(paths.clone()).unwrap();
+        let written: Value = serde_json::from_str(&fs::read_to_string(&paths.shell_json).unwrap()).unwrap();
+        assert_eq!(written, default_config());
+        assert_eq!(cfg.str("launcher.actionPrefix"), ">");
+        let _ = fs::remove_dir_all(paths.config_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn user_file_overrides_defaults_and_keeps_unknown_keys() {
+        let paths = temp_paths("merge");
+        fs::create_dir_all(&paths.config_dir).unwrap();
+        fs::write(&paths.shell_json, r#"{ "border": { "thickness": 4 }, "someLinuxOnlyKey": { "x": 1 } }"#).unwrap();
+        let mut cfg = Config::load(paths.clone()).unwrap();
+        assert_eq!(cfg.i64("border.thickness"), 4);
+        assert_eq!(cfg.i64("border.rounding"), 25, "untouched keys come from the defaults");
+        // Saving from the settings panel writes only the user's keys (plus the new one).
+        cfg.set("appearance.transparency.enabled", json!(true)).unwrap();
+        cfg.save().unwrap();
+        let written: Value = serde_json::from_str(&fs::read_to_string(&paths.shell_json).unwrap()).unwrap();
+        assert_eq!(written["someLinuxOnlyKey"], json!({ "x": 1 }));
+        assert_eq!(written["appearance"], json!({ "transparency": { "enabled": true } }));
+        assert!(written.get("bar").is_none(), "defaults are never copied into the user file");
+        let _ = fs::remove_dir_all(paths.config_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn reload_ignores_our_own_writes_and_keeps_config_on_errors() {
+        let paths = temp_paths("reload");
+        let mut cfg = Config::load(paths.clone()).unwrap();
+        cfg.set("border.thickness", json!(7)).unwrap();
+        cfg.save().unwrap();
+        assert!(!cfg.reload().unwrap(), "the watcher sees our own save");
+        fs::write(&paths.shell_json, r#"{ "border": { "thickness": 12 } }"#).unwrap();
+        assert!(cfg.reload().unwrap());
+        assert_eq!(cfg.i64("border.thickness"), 12);
+        fs::write(&paths.shell_json, "{ broken").unwrap();
+        assert!(cfg.reload().is_err());
+        assert_eq!(cfg.i64("border.thickness"), 12, "a broken file keeps the previous config");
+        fs::write(&paths.shell_json, "   ").unwrap();
+        assert!(cfg.reload().unwrap());
+        assert_eq!(cfg.i64("border.thickness"), 10, "an empty file means all defaults");
+        let _ = fs::remove_dir_all(paths.config_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn bar_entries_toggle_like_caelestia() {
+        let paths = temp_paths("entries");
+        let mut cfg = Config::load(paths.clone()).unwrap();
+        assert!(cfg.bar_entry("clock"));
+        cfg.set("bar.entries.clock", json!(false)).unwrap();
+        assert!(!cfg.bar_entry("clock"));
+        assert!(cfg.bar_entry("workspaces"), "other entries keep their state");
+        cfg.set("bar.entries.newWidget", json!(false)).unwrap();
+        assert!(!cfg.bar_entry("newWidget"));
+        assert!(!cfg.bar_entry("neverMentioned"), "with an entries list, only listed entries show (like Caelestia)");
+        let _ = fs::remove_dir_all(paths.config_dir.parent().unwrap());
+    }
+
+    #[test]
+    fn typed_accessors() {
+        let paths = temp_paths("typed");
+        fs::create_dir_all(&paths.config_dir).unwrap();
+        fs::write(&paths.shell_json, r#"{ "a": { "f": 2.6, "s": "x", "list": ["a", 1, "b"], "b": "true" } }"#).unwrap();
+        let cfg = Config::load(paths.clone()).unwrap();
+        assert_eq!(cfg.i64("a.f"), 3, "floats round when an integer is wanted");
+        assert_eq!(cfg.f32("a.f"), 2.6);
+        assert_eq!(cfg.str_list("a.list"), ["a", "b"]);
+        assert!(!cfg.bool("a.b"), "strings are not booleans");
+        assert_eq!(cfg.str("a.missing"), "");
+        assert_eq!(cfg.i64("a.s"), 0);
+        let _ = fs::remove_dir_all(paths.config_dir.parent().unwrap());
+    }
+
+    /// Every key the UI writes must be one the shell reads: a typo (or a
+    /// renamed option) would make a Settings switch silently do nothing.
+    #[test]
+    fn every_ui_setting_key_exists() {
+        let defaults = default_config();
+        let entries: Vec<String> = defaults["bar"]["entries"].as_array().unwrap().iter().filter_map(|e| e["id"].as_str().map(str::to_owned)).collect();
+        let ui = Path::new(env!("CARGO_MANIFEST_DIR")).join("ui");
+        let mut files = vec![ui.clone()];
+        let mut keys = Vec::new();
+        while let Some(p) = files.pop() {
+            if p.is_dir() {
+                files.extend(fs::read_dir(&p).unwrap().flatten().map(|e| e.path()));
+            } else if p.extension().is_some_and(|e| e == "slint") {
+                let text = fs::read_to_string(&p).unwrap();
+                for marker in ["key: \"", "Shell.set-config(\""] {
+                    for (i, _) in text.match_indices(marker) {
+                        let rest = &text[i + marker.len()..];
+                        keys.push(rest[..rest.find('"').unwrap()].to_owned());
+                    }
+                }
+            }
+        }
+        assert!(keys.len() > 20, "found only {keys:?}");
+        let unknown: Vec<&String> = keys
+            .iter()
+            // `@...` are actions; services.scheme.* is stored in scheme.json by set_config.
+            .filter(|k| !k.starts_with('@') && !k.starts_with("services.scheme."))
+            .filter(|k| match k.strip_prefix("bar.entries.") {
+                Some(id) => !entries.iter().any(|e| e == id),
+                None => k.split('.').try_fold(&defaults, |v, part| v.get(part)).is_none(),
+            })
+            .collect();
+        assert!(unknown.is_empty(), "UI writes keys missing from the defaults: {unknown:?}");
+    }
+
+    #[test]
+    fn expands_home() {
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(expand_home("~/Pictures"), home.join("Pictures"));
+        assert_eq!(expand_home("~\\Videos"), home.join("Videos"));
+        assert_eq!(expand_home("D:/Walls"), PathBuf::from("D:/Walls"));
+    }
+
     #[test]
     fn set_dotted_creates_objects() {
         let mut v = json!({ "keep": 1 });

@@ -36,6 +36,25 @@ pub(super) fn notification_body(body: &str) -> String {
     out
 }
 
+/// A value from `Shell.set-config`: JSON, or a number Slint formatted with
+/// the UI locale (sliders send "0,85" in Spanish), or else plain text.
+pub(super) fn ui_value(json: &str) -> Value {
+    serde_json::from_str(json)
+        .ok()
+        .or_else(|| parse_num::<f64>(json).and_then(serde_json::Number::from_f64).map(Value::Number))
+        .unwrap_or_else(|| Value::String(json.to_owned()))
+}
+
+/// Integral settings stay integers in the file and the rest is rounded to
+/// 3 decimals (slider noise like 0.8500001 makes ugly diffs in shared dots).
+pub(super) fn normalize_number(path: &str, value: Value) -> Value {
+    match value {
+        Value::Number(n) if n.as_f64().is_some_and(|f| f.fract() == 0.0 && is_integral_key(path)) => Value::from(n.as_f64().unwrap_or(0.0) as i64),
+        Value::Number(n) => Value::from((n.as_f64().unwrap_or(0.0) * 1000.0).round() / 1000.0),
+        v => v,
+    }
+}
+
 pub(super) fn is_integral_key(path: &str) -> bool {
     matches!(path, "border.thickness" | "border.rounding" | "bar.workspaces.shown" | "launcher.maxShown" | "bar.sizes.innerWidth") || path.starts_with("windows.komorebi.")
 }
@@ -177,6 +196,7 @@ pub(super) fn cookie_path() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn notification_bodies_are_capped() {
@@ -201,6 +221,37 @@ mod tests {
         assert_eq!(parse_num::<f64>(" 0.45 "), Some(0.45));
         assert_eq!(parse_num::<f32>("12"), Some(12.0));
         assert_eq!(parse_num::<f64>("abc"), None);
+    }
+
+    /// Spanish sliders send "0,85"; values must stay numbers, never strings.
+    #[test]
+    fn ui_values_survive_the_decimal_comma() {
+        assert_eq!(ui_value("0,85"), json!(0.85));
+        assert_eq!(ui_value("0.85"), json!(0.85));
+        assert_eq!(ui_value("12"), json!(12));
+        assert_eq!(ui_value("-1,5"), json!(-1.5));
+        assert_eq!(ui_value("true"), json!(true));
+        assert_eq!(ui_value("\"Alt+Space\""), json!("Alt+Space"));
+        assert_eq!(ui_value("not json"), json!("not json"));
+        // "1,2,3" is neither JSON nor a number: kept as text, never mangled.
+        assert_eq!(ui_value("1,2,3"), json!("1,2,3"));
+    }
+
+    #[test]
+    fn numbers_are_normalized_per_key() {
+        assert_eq!(normalize_number("border.thickness", ui_value("12,0")), json!(12));
+        assert!(normalize_number("border.thickness", ui_value("12")).is_i64());
+        assert_eq!(normalize_number("border.thickness", ui_value("12,5")), json!(12.5), "never truncates a real fraction");
+        assert_eq!(normalize_number("appearance.transparency.base", ui_value("0,8500001")), json!(0.85));
+        assert_eq!(normalize_number("appearance.transparency.base", ui_value("1")), json!(1.0));
+        assert_eq!(normalize_number("general.language", json!("es")), json!("es"));
+    }
+
+    #[test]
+    fn size_labels_follow_the_locale_decimal() {
+        // size_label follows the global UI language: accept either separator.
+        assert_eq!(size_label(12 * 1_048_576).replace(',', "."), "12 MB");
+        assert_eq!(size_label(1536 * 1_048_576).replace(',', "."), "1.5 GB");
     }
 
     #[test]
