@@ -28,6 +28,7 @@ pub fn default_config() -> Value {
         },
         "general": {
             "language": "auto",
+            "checkUpdates": true,
             "apps": {
                 "terminal": ["wt"],
                 "audio": ["ms-settings:sound"],

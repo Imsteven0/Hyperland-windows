@@ -160,6 +160,11 @@
           ],
           "default": "auto"
         },
+        "checkUpdates": {
+          "type": "boolean",
+          "description": "Check GitHub Releases daily and show new versions in Settings › About.",
+          "default": true
+        },
         "apps": {
           "type": "object",
           "additionalProperties": {

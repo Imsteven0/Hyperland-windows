@@ -297,6 +297,12 @@ impl Caelestia {
         *self.svc.borrow_mut() = Some(Services { notifications, sysmon, media, weather, net });
         drop(cfg);
         *self.plugin_runner.borrow_mut() = Some(PluginRunner::spawn(|u| post(move |app| app.on_plugin_update(u))));
+        if self.cfg.borrow().bool("general.checkUpdates") {
+            use crate::services::updates::UpdateChecker;
+            // A minute after start (not competing with startup), then daily.
+            let checker = UpdateChecker::spawn(env!("CARGO_PKG_VERSION"), Duration::from_secs(60), Duration::from_secs(24 * 3600), |c| post(move |app| app.on_update_check(c)));
+            *self.updates.borrow_mut() = Some(checker);
+        }
         self.load_plugins();
     }
 

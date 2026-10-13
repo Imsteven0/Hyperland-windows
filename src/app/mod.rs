@@ -216,6 +216,8 @@ struct State {
     plugin_results: Vec<Option<Result<plugins::Output, String>>>,
     plugin_listing: Vec<PluginListing>,
     plugin_gen: u64,
+    /// Newer release found by the update check.
+    update: Option<crate::services::updates::Release>,
     /// Notification center: current list, app logos, groups shown expanded.
     notifs: Vec<notifications::Notif>,
     notif_icons: std::collections::HashMap<String, Image>,
@@ -283,6 +285,7 @@ pub struct Caelestia {
     watcher: RefCell<Option<Watcher>>,
     clip_watcher: RefCell<Option<crate::platform::clipboard::ClipboardWatcher>>,
     plugin_runner: RefCell<Option<PluginRunner>>,
+    updates: RefCell<Option<crate::services::updates::UpdateChecker>>,
 }
 
 /// A plugin folder as Settings shows it.
@@ -363,6 +366,7 @@ impl Caelestia {
                 plugin_results: Vec::new(),
                 plugin_listing: Vec::new(),
                 plugin_gen: 0,
+                update: None,
                 notifs: Vec::new(),
                 notif_icons: Default::default(),
                 notif_expanded: Default::default(),
@@ -389,6 +393,7 @@ impl Caelestia {
             watcher: RefCell::new(None),
             clip_watcher: RefCell::new(None),
             plugin_runner: RefCell::new(None),
+            updates: RefCell::new(None),
         });
         APP.with(|a| *a.borrow_mut() = Rc::downgrade(&app));
         app.st.borrow_mut().wallpaper = current_wallpaper_path(&app.cfg.borrow());

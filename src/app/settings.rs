@@ -3,6 +3,41 @@
 use super::*;
 
 impl Caelestia {
+    /// Settings › About: "Check now".
+    pub(super) fn check_updates_now(&self) {
+        self.settings.global::<ShellGlobal>().set_update_state("checking".into());
+        match self.updates.borrow().as_ref() {
+            Some(checker) => checker.check_now(),
+            // Checks are off: still honour an explicit click, once.
+            None => {
+                std::thread::spawn(|| {
+                    let c = crate::services::updates::check_once(env!("CARGO_PKG_VERSION"));
+                    post(move |app| app.on_update_check(c));
+                });
+            }
+        }
+    }
+
+    pub(super) fn on_update_check(&self, check: crate::services::updates::Check) {
+        use crate::services::updates::Check;
+        let g = self.settings.global::<ShellGlobal>();
+        match check {
+            Check::Available(r) => {
+                log::info!("update available: {}", r.tag);
+                g.set_update_state("available".into());
+                g.set_update_version(r.tag.clone().into());
+                self.st.borrow_mut().update = Some(r);
+            }
+            Check::UpToDate => {
+                g.set_update_state("current".into());
+                self.st.borrow_mut().update = None;
+            }
+            // Keep showing a known update if a later check fails (offline...).
+            Check::Failed(_) if self.st.borrow().update.is_some() => g.set_update_state("available".into()),
+            Check::Failed(_) => g.set_update_state("error".into()),
+        }
+    }
+
     pub(super) fn toggle_settings(&self, show: Option<bool>) {
         let visible = self.st.borrow().settings_visible;
         let want = show.unwrap_or(!visible);

@@ -806,6 +806,46 @@ component AboutPage inherits VerticalLayout {
             StyledText { text: "v" + root.version + " · Windows"; font-size: Theme.font-small; color: Theme.c.outline; horizontal-alignment: center; }
         }
     }
+    SectionLabel { text: @tr("Updates"); }
+    SettingRow {
+        first: true;
+        last: true;
+        title: Shell.update-state == "available" ? @tr("Update available: {}", Shell.update-version)
+            : Shell.update-state == "checking" ? @tr("Checking for updates…")
+            : Shell.update-state == "current" ? @tr("You have the latest version")
+            : Shell.update-state == "error" ? @tr("Couldn't check for updates")
+            : @tr("Caelestia updates");
+        subtitle: Shell.update-state == "available" ? @tr("Download the installer from GitHub; your dots are kept") : @tr("Checked daily on GitHub Releases (general.checkUpdates)");
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            if Shell.update-state == "available": TextButton {
+                y: (parent.height - self.height) / 2;
+                height: 32px;
+                icon: "download";
+                text: @tr("Get update");
+                kind: ButtonKind.filled;
+                font-size: Theme.font-small;
+                clicked => { Shell.action("update-open", ""); }
+            }
+            if Shell.update-state == "available": IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: "refresh";
+                kind: ButtonKind.tonal;
+                size: 32px;
+                icon-size: Theme.font-larger;
+                clicked => { Shell.action("update-check", ""); }
+            }
+            if Shell.update-state != "available": TextButton {
+                y: (parent.height - self.height) / 2;
+                height: 32px;
+                icon: Shell.update-state == "checking" ? "hourglass_top" : "refresh";
+                text: @tr("Check now");
+                kind: ButtonKind.outlined;
+                font-size: Theme.font-small;
+                clicked => { Shell.action("update-check", ""); }
+            }
+        }
+    }
     SectionLabel { text: @tr("System"); }
     InfoTable { rows: root.system; }
     SectionLabel { text: @tr("Software"); }

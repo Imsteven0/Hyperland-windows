@@ -14,5 +14,6 @@ pub mod perf;
 pub mod plugins;
 pub mod sysmon;
 pub mod temps;
+pub mod updates;
 pub mod wallpaper_repo;
 pub mod weather;

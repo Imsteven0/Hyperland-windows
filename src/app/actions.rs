@@ -316,6 +316,11 @@ impl Caelestia {
             "plugin-click" => self.plugin_click(arg.parse().unwrap_or(usize::MAX)),
             "plugin-toggle" => self.toggle_plugin(arg),
             "plugins-reload" => self.load_plugins(),
+            "update-check" => self.check_updates_now(),
+            "update-open" => {
+                let target = self.st.borrow().update.as_ref().map(|r| r.installer.clone().unwrap_or_else(|| r.page.clone()));
+                system::open(&target.unwrap_or_else(|| format!("https://github.com/{}/releases", crate::services::updates::REPO)));
+            }
             "dots-fetch" => self.fetch_dots(arg),
             "dots-apply" => self.apply_dots(arg == "wallpapers"),
             "dots-undo" => self.undo_dots(),
