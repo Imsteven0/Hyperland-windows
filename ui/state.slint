@@ -167,6 +167,12 @@ export global Shell {
     in property <[PluginWidget]> bar-plugins;
     in property <[PluginWidget]> dash-plugins;
     in property <[PluginWidget]> plugin-list;
+    // Dots import from GitHub (Settings › About)
+    in property <string> dots-state: "idle"; // idle | fetching | ready | applied | error
+    in property <string> dots-text;
+    in property <int> dots-wallpapers;
+    in property <bool> dots-can-undo;
+    in property <[string]> dots-recent;
     // Wallpaper download from GitHub (Settings › Wallpaper).
     in property <string> wallpaper-dl-state: "idle"; // idle | indexing | running | done | error
     in property <string> wallpaper-dl-text;

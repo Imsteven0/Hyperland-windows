@@ -704,6 +704,88 @@ component LanguagePage inherits VerticalLayout {
     }
 }
 
+// Import dots from a GitHub link: preview first, then apply (with a backup
+// to undo) and optionally download the repository's wallpapers.
+component DotsGallery inherits Rectangle {
+    property <bool> busy: Shell.dots-state == "fetching";
+    property <bool> with-walls: true;
+    border-radius: Theme.rounding-normal;
+    background: Theme.layer(Theme.c.surface-container-high, 2);
+    height: col.preferred-height;
+    col := VerticalLayout {
+        padding: Theme.padding-normal;
+        padding-left: Theme.padding-larger;
+        spacing: Theme.spacing-small;
+        HorizontalLayout {
+            spacing: Theme.spacing-normal;
+            MaterialIcon { text: "travel_explore"; color: Theme.c.primary; }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                StyledText { text: @tr("Import from GitHub"); font-size: Theme.font-normal; }
+                StyledText {
+                    text: Shell.dots-text != "" ? Shell.dots-text : @tr("Finds shell.json, scheme.json and wallpapers in a repository");
+                    font-size: Theme.font-small;
+                    color: Shell.dots-state == "error" ? Theme.c.error : Theme.c.outline;
+                    overflow: elide;
+                }
+            }
+            TextButton {
+                y: (parent.height - self.height) / 2;
+                height: 32px;
+                icon: root.busy ? "hourglass_top" : "search";
+                text: @tr("Preview");
+                font-size: Theme.font-small;
+                clicked => { if !root.busy { Shell.action("dots-fetch", url.text); } }
+            }
+        }
+        url := StyledInput {
+            height: 40px;
+            icon: "link";
+            placeholder: "https://github.com/usuario/dots";
+            font-size: Theme.font-normal;
+            accepted(t) => { if !root.busy { Shell.action("dots-fetch", t); } }
+        }
+        if Shell.dots-recent.length > 0: HorizontalLayout {
+            spacing: Theme.spacing-small;
+            StyledText { text: @tr("Recent"); font-size: Theme.font-small; color: Theme.c.outline; }
+            for r[i] in Shell.dots-recent: Rectangle {
+                visible: i < 3;
+                height: 26px;
+                width: i < 3 ? min(180px, chip.preferred-width + 20px) : 0;
+                border-radius: 13px;
+                background: Theme.layer(Theme.c.secondary-container, 2);
+                StateLayer { border-radius: parent.border-radius; clicked => { url.text = r; Shell.action("dots-fetch", r); } }
+                chip := StyledText { x: 10px; width: parent.width - 20px; text: r; font-size: Theme.font-small; color: Theme.c.on-secondary-container; overflow: elide; }
+            }
+        }
+        if Shell.dots-state == "ready": HorizontalLayout {
+            spacing: Theme.spacing-small;
+            if Shell.dots-wallpapers > 0: HorizontalLayout {
+                spacing: Theme.spacing-small;
+                StyledSwitch {
+                    y: (parent.height - self.height) / 2;
+                    checked: root.with-walls;
+                    toggled(v) => { root.with-walls = v; }
+                }
+                StyledText { text: @tr("Also download its wallpapers"); font-size: Theme.font-small; color: Theme.c.on-surface-variant; }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            TextButton {
+                height: 32px;
+                icon: "check";
+                text: @tr("Apply");
+                kind: ButtonKind.filled;
+                font-size: Theme.font-small;
+                clicked => { Shell.action("dots-apply", root.with-walls && Shell.dots-wallpapers > 0 ? "wallpapers" : ""); }
+            }
+        }
+        if Shell.dots-can-undo: HorizontalLayout {
+            StyledText { horizontal-stretch: 1; text: @tr("Your previous dots were saved before importing"); font-size: Theme.font-small; color: Theme.c.outline; overflow: elide; }
+            TextButton { height: 30px; icon: "undo"; text: @tr("Undo import"); kind: ButtonKind.outlined; font-size: Theme.font-small; clicked => { Shell.action("dots-undo", ""); } }
+        }
+    }
+}
+
 component AboutPage inherits VerticalLayout {
     in property <[InfoRow]> system;
     in property <[InfoRow]> software;
@@ -755,6 +837,8 @@ component AboutPage inherits VerticalLayout {
         ActionRow { title: @tr("Export dots"); subtitle: @tr("shell.json + scheme.json as a shareable folder"); icon: "upload"; button: @tr("Export"); clicked => { Shell.action("dots-export", ""); } }
         ActionRow { last: true; title: @tr("Import dots"); subtitle: @tr("Apply someone else's shell.json"); icon: "download"; button: @tr("Import"); clicked => { Shell.action("dots-import", ""); } }
     }
+    SectionLabel { text: @tr("Dots gallery"); }
+    DotsGallery { }
 }
 
 // ---------------- window ----------------

@@ -4,6 +4,7 @@ pub mod apps;
 pub mod calc;
 pub mod clipboard;
 pub mod connectivity;
+pub mod dots_repo;
 pub mod emoji;
 pub mod icons;
 pub mod komorebi;

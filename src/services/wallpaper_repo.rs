@@ -101,7 +101,7 @@ pub fn start(repo: Repo, dest: PathBuf, on: impl Fn(Progress) + Send + Sync + 's
     Download { cancel }
 }
 
-fn agent() -> ureq::Agent {
+pub(crate) fn agent() -> ureq::Agent {
     ureq::Agent::new_with_config(
         ureq::config::Config::builder()
             .timeout_connect(Some(Duration::from_secs(15)))
@@ -110,7 +110,7 @@ fn agent() -> ureq::Agent {
     )
 }
 
-fn get_json(agent: &ureq::Agent, url: &str) -> Result<Value> {
+pub(crate) fn get_json(agent: &ureq::Agent, url: &str) -> Result<Value> {
     let mut resp = agent
         .get(url)
         .header("User-Agent", "caelestia-win")
@@ -124,31 +124,63 @@ fn get_json(agent: &ureq::Agent, url: &str) -> Result<Value> {
     Ok(resp.body_mut().read_json::<Value>()?)
 }
 
-fn is_image(path: &str) -> bool {
+pub fn is_image(path: &str) -> bool {
     path.rsplit_once('.').is_some_and(|(_, ext)| IMAGE_EXTS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
-fn index(repo: &Repo) -> Result<(String, Vec<Item>)> {
-    let agent = agent();
+/// A file in a repository's git tree.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Blob {
+    pub path: String,
+    pub size: u64,
+}
+
+/// Lists every file of the repository (2 API calls): the branch used and
+/// its blobs. Shared by the wallpaper and the dots downloads.
+pub fn tree(agent: &ureq::Agent, repo: &Repo) -> Result<(String, Vec<Blob>)> {
     let base = format!("https://api.github.com/repos/{}/{}", repo.owner, repo.name);
     let branch = match &repo.branch {
         Some(b) => b.clone(),
-        None => get_json(&agent, &base)?["default_branch"].as_str().context("repository has no default branch")?.to_owned(),
+        None => get_json(agent, &base)?["default_branch"].as_str().context("repository has no default branch")?.to_owned(),
     };
-    let tree = get_json(&agent, &format!("{base}/git/trees/{}?recursive=1", encode_path(&branch)))?;
+    let tree = get_json(agent, &format!("{base}/git/trees/{}?recursive=1", encode_path(&branch)))?;
     if tree["truncated"].as_bool() == Some(true) {
-        log::warn!("wallpaper download: {}/{} is too large for one index, some images are missing", repo.owner, repo.name);
+        log::warn!("{}/{} is too large for one index, some files are missing", repo.owner, repo.name);
     }
-    let prefix = if repo.subdir.is_empty() { String::new() } else { format!("{}/", repo.subdir) };
-    let items: Vec<Item> = tree["tree"]
+    let blobs = tree["tree"]
         .as_array()
         .context("unexpected GitHub response")?
         .iter()
         .filter(|t| t["type"] == "blob")
-        .filter_map(|t| {
-            let path = t["path"].as_str()?;
-            let rel = path.strip_prefix(&prefix)?;
-            is_image(rel).then(|| Item { path: path.to_owned(), rel: rel.to_owned(), size: t["size"].as_u64().unwrap_or(0) })
+        .filter_map(|t| Some(Blob { path: t["path"].as_str()?.to_owned(), size: t["size"].as_u64().unwrap_or(0) }))
+        .collect();
+    Ok((branch, blobs))
+}
+
+/// Direct download URL of a file on a branch.
+pub fn raw_url(repo: &Repo, branch: &str, path: &str) -> String {
+    format!("https://raw.githubusercontent.com/{}/{}/{}/{}", repo.owner, repo.name, encode_path(branch), encode_path(path))
+}
+
+/// Downloads a small text file (manifests, JSON), refusing anything over `max` bytes.
+pub fn get_text(agent: &ureq::Agent, url: &str, max: u64) -> Result<String> {
+    let mut resp = agent.get(url).header("User-Agent", "caelestia-win").call()?;
+    let mut buf = Vec::new();
+    resp.body_mut().as_reader().take(max + 1).read_to_end(&mut buf)?;
+    if buf.len() as u64 > max {
+        bail!("file too large");
+    }
+    Ok(String::from_utf8(buf)?)
+}
+
+fn index(repo: &Repo) -> Result<(String, Vec<Item>)> {
+    let (branch, blobs) = tree(&agent(), repo)?;
+    let prefix = if repo.subdir.is_empty() { String::new() } else { format!("{}/", repo.subdir) };
+    let items: Vec<Item> = blobs
+        .into_iter()
+        .filter_map(|b| {
+            let rel = b.path.strip_prefix(&prefix)?.to_owned();
+            is_image(&rel).then_some(Item { rel, path: b.path, size: b.size })
         })
         .collect();
     if items.is_empty() {
@@ -173,7 +205,7 @@ fn run(repo: &Repo, branch: &str, items: Vec<Item>, dest: &Path, cancel: &Atomic
                     let outcome = if fs::metadata(&target).is_ok_and(|m| m.len() == item.size) {
                         Ok(false)
                     } else {
-                        let url = format!("https://raw.githubusercontent.com/{}/{}/{}/{}", repo.owner, repo.name, encode_path(branch), encode_path(&item.path));
+                        let url = raw_url(repo, branch, &item.path);
                         // One retry: raw.githubusercontent.com drops the odd connection.
                         fetch(&agent, &url, &target, cancel).or_else(|_| fetch(&agent, &url, &target, cancel)).map(|_| true)
                     };
