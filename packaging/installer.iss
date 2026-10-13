@@ -21,8 +21,9 @@ DefaultDirName={localappdata}\Programs\Caelestia
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 PrivilegesRequired=lowest
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+; x64compatible: x64 Windows, and Windows on Arm (runs the x64 build emulated).
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
 OutputDir=..\dist
 OutputBaseFilename=caelestia-win-{#AppVersion}-setup
@@ -65,6 +66,8 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 
 [Run]
 Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Description: "{cm:LaunchNow}"; Flags: nowait postinstall skipifsilent
+; In-app updates run the installer silently: start the shell again when done.
+Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 ; Releases the reserved screen space and restores any click-through windows.

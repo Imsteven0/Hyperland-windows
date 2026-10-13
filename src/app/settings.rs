@@ -21,6 +21,10 @@ impl Caelestia {
     pub(super) fn on_update_check(&self, check: crate::services::updates::Check) {
         use crate::services::updates::Check;
         let g = self.settings.global::<ShellGlobal>();
+        // A daily check landing mid-update must not reset its progress.
+        if matches!(g.get_update_state().as_str(), "downloading" | "installing") {
+            return;
+        }
         match check {
             Check::Available(r) => {
                 log::info!("update available: {}", r.tag);
@@ -36,6 +40,52 @@ impl Caelestia {
             Check::Failed(_) if self.st.borrow().update.is_some() => g.set_update_state("available".into()),
             Check::Failed(_) => g.set_update_state("error".into()),
         }
+    }
+
+    /// Settings › About: "Update". Downloads the installer in the background
+    /// (verified against the release's checksums), then runs it silently and
+    /// quits; it restarts the shell once done. Downloaded by us, the file has
+    /// no "from the internet" mark, so SmartScreen doesn't stop it.
+    pub(super) fn install_update(&self) {
+        use crate::services::updates;
+        let g = self.settings.global::<ShellGlobal>();
+        let Some(release) = self.st.borrow().update.clone() else { return };
+        if matches!(g.get_update_state().as_str(), "downloading" | "installing") {
+            return;
+        }
+        g.set_update_state("downloading".into());
+        g.set_update_progress(0.0);
+        std::thread::spawn(move || {
+            let dir = updates::download_dir();
+            let _ = std::fs::remove_dir_all(&dir); // leftovers of earlier updates
+            let mut last = std::time::Instant::now();
+            let result = updates::download_installer(&release, &dir, |done, total| {
+                // ~10 UI updates a second is plenty for a progress bar.
+                if last.elapsed().as_millis() >= 100 {
+                    last = std::time::Instant::now();
+                    let f = total.filter(|t| *t > 0).map_or(0.0, |t| done as f32 / t as f32);
+                    post(move |app| app.settings.global::<ShellGlobal>().set_update_progress(f));
+                }
+            });
+            post(move |app| {
+                let g = app.settings.global::<ShellGlobal>();
+                match result.and_then(|path| {
+                    g.set_update_progress(1.0);
+                    g.set_update_state("installing".into());
+                    log::info!("installing update {}", release.tag);
+                    updates::run_installer(&path)
+                }) {
+                    // The installer closes and restarts us; leave cleanly first.
+                    Ok(()) => {
+                        let _ = slint::quit_event_loop();
+                    }
+                    Err(e) => {
+                        log::warn!("update failed: {e:#}");
+                        g.set_update_state("failed".into());
+                    }
+                }
+            });
+        });
     }
 
     pub(super) fn toggle_settings(&self, show: Option<bool>) {

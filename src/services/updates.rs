@@ -1,11 +1,19 @@
-//! Update notice: asks GitHub for the latest release (shortly after start,
-//! then once a day) and tells Settings › About when it is newer than the
-//! running build. Nothing is downloaded or installed automatically, and
-//! `general.checkUpdates: false` turns the request off entirely.
+//! Updates: asks GitHub for the latest release (shortly after start, then
+//! once a day) and tells Settings › About when it is newer than the running
+//! build. Installing only happens when the user asks: the installer is
+//! downloaded from this repository's release, checked against the release's
+//! SHA256SUMS.txt and run silently. `general.checkUpdates: false` turns the
+//! daily check off entirely.
 
-use std::{cmp::Ordering, thread, time::Duration};
+use std::{
+    cmp::Ordering,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    thread,
+    time::Duration,
+};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use crossbeam_channel::{RecvTimeoutError, Sender};
 use serde_json::Value;
 
@@ -79,14 +87,16 @@ pub struct Release {
     pub page: String,
     /// The installer asset, when the release has one.
     pub installer: Option<String>,
+    /// The release's SHA256SUMS.txt asset.
+    pub checksums: Option<String>,
 }
 
 /// Reads GitHub's `releases/latest` response.
 pub fn parse_release(v: &Value) -> Option<Release> {
     let tag = v["tag_name"].as_str()?.to_owned();
     let version = Version::parse(&tag)?;
-    let installer = v["assets"].as_array().into_iter().flatten().filter_map(|a| a["browser_download_url"].as_str()).find(|u| u.to_lowercase().ends_with("-setup.exe")).map(str::to_owned);
-    Some(Release { version, tag, page: v["html_url"].as_str().unwrap_or_default().to_owned(), installer })
+    let asset = |suffix: &str| v["assets"].as_array().into_iter().flatten().filter_map(|a| a["browser_download_url"].as_str()).find(|u| u.to_lowercase().ends_with(suffix)).map(str::to_owned);
+    Some(Release { version, tag, page: v["html_url"].as_str().unwrap_or_default().to_owned(), installer: asset("-setup.exe"), checksums: asset("/sha256sums.txt") })
 }
 
 /// What a check found.
@@ -128,6 +138,90 @@ fn fetch_latest() -> Result<Option<Release>> {
         Err(e) => return Err(e).context("checking for updates"),
     };
     Ok(parse_release(&v))
+}
+
+/// Largest installer we accept (today's is ~15 MB).
+const MAX_INSTALLER: u64 = 256 * 1024 * 1024;
+
+/// Only files published on this repository's releases are ever downloaded.
+fn trusted(url: &str) -> bool {
+    url.starts_with(&format!("https://github.com/{REPO}/releases/download/"))
+}
+
+/// The expected SHA-256 (lowercase hex) of `file` in a SHA256SUMS.txt
+/// (`<hash>  <name>` per line, as the Release workflow writes it).
+pub fn checksum_for(sums: &str, file: &str) -> Option<String> {
+    sums.lines().find_map(|l| {
+        let (hash, name) = l.trim().split_once(char::is_whitespace)?;
+        let ok = name.trim().trim_start_matches('*').eq_ignore_ascii_case(file) && hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit());
+        ok.then(|| hash.to_ascii_lowercase())
+    })
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Downloads `release`'s installer into `dir` and returns its path once its
+/// SHA-256 matches the release's SHA256SUMS.txt. `progress(done, total)` is
+/// called as bytes arrive. Blocking: run it off the UI thread.
+pub fn download_installer(release: &Release, dir: &Path, mut progress: impl FnMut(u64, Option<u64>)) -> Result<PathBuf> {
+    let (Some(url), Some(sums_url)) = (&release.installer, &release.checksums) else { bail!("the release has no installer or checksums") };
+    if !trusted(url) || !trusted(sums_url) {
+        bail!("unexpected download location");
+    }
+    let name = url.rsplit('/').next().filter(|n| !n.is_empty() && !n.contains(['\\', ':'])).context("bad installer name")?;
+    let agent = super::wallpaper_repo::agent();
+    let sums = super::wallpaper_repo::get_text(&agent, sums_url, 64 * 1024).context("downloading the checksums")?;
+    let expected = checksum_for(&sums, name).context("the installer isn't listed in SHA256SUMS.txt")?;
+
+    std::fs::create_dir_all(dir)?;
+    let part = dir.join(format!("{name}.part"));
+    let mut resp = agent.get(url).header("User-Agent", "caelestia-win").call().context("downloading the installer")?;
+    let total = resp.body().content_length();
+    let mut reader = resp.body_mut().as_reader().take(MAX_INSTALLER + 1);
+    let mut file = std::io::BufWriter::new(std::fs::File::create(&part)?);
+    let mut hash = ring::digest::Context::new(&ring::digest::SHA256);
+    let (mut buf, mut done) = (vec![0u8; 64 * 1024], 0u64);
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n])?;
+        hash.update(&buf[..n]);
+        done += n as u64;
+        progress(done, total);
+    }
+    file.flush()?;
+    drop(file);
+    let got = hex(hash.finish().as_ref());
+    if done > MAX_INSTALLER || got != expected {
+        let _ = std::fs::remove_file(&part);
+        bail!(if done > MAX_INSTALLER { "the installer is too large".to_owned() } else { format!("checksum mismatch (got {got})") });
+    }
+    let path = dir.join(name);
+    std::fs::rename(&part, &path)?;
+    Ok(path)
+}
+
+/// Runs a downloaded installer unattended. It closes this shell (Inno Setup's
+/// CloseApplications), updates it in place, keeps the user's dots and starts
+/// it again. Detached, so it outlives us; the caller should quit.
+pub fn run_installer(path: &Path) -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    std::process::Command::new(path)
+        .args(["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"])
+        .creation_flags(DETACHED_PROCESS)
+        .spawn()
+        .context("starting the installer")?;
+    Ok(())
+}
+
+/// Where installers are downloaded; emptied before each download.
+pub fn download_dir() -> PathBuf {
+    std::env::temp_dir().join("caelestia-update")
 }
 
 /// Checks in the background; `check_now` forces a check (Settings button).
@@ -202,6 +296,44 @@ mod tests {
         assert_eq!(r.version, v("0.2.0"));
         assert_eq!(r.installer.as_deref(), Some("https://x/caelestia-win-0.2.0-setup.exe"));
         assert!(parse_release(&json!({ "message": "Not Found" })).is_none());
+    }
+
+    #[test]
+    fn finds_the_installer_checksum() {
+        let h = "a".repeat(64);
+        let sums = format!("{h}  caelestia-win-0.2.0-x64.zip\r\n{}  caelestia-win-0.2.0-setup.exe\n", "B".repeat(64));
+        assert_eq!(checksum_for(&sums, "caelestia-win-0.2.0-setup.exe"), Some("b".repeat(64)));
+        assert_eq!(checksum_for(&sums, "caelestia-win-0.2.0-x64.zip"), Some(h));
+        assert_eq!(checksum_for(&sums, "other.exe"), None);
+        assert_eq!(checksum_for("xyz  caelestia-win-0.2.0-setup.exe", "caelestia-win-0.2.0-setup.exe"), None, "not a SHA-256");
+    }
+
+    #[test]
+    fn only_downloads_from_this_repository() {
+        assert!(trusted(&format!("https://github.com/{REPO}/releases/download/v0.2.0/caelestia-win-0.2.0-setup.exe")));
+        assert!(!trusted("https://github.com/someone/else/releases/download/v1/x-setup.exe"));
+        assert!(!trusted(&format!("http://github.com/{REPO}/releases/download/v0.2.0/x-setup.exe")));
+        assert!(!trusted("https://example.com/x-setup.exe"));
+        let body = json!({
+            "tag_name": "v0.2.0",
+            "assets": [
+                { "browser_download_url": "https://x/caelestia-win-0.2.0-setup.exe" },
+                { "browser_download_url": "https://x/SHA256SUMS.txt" }
+            ]
+        });
+        assert_eq!(parse_release(&body).unwrap().checksums.as_deref(), Some("https://x/SHA256SUMS.txt"));
+    }
+
+    /// Fetches the real latest release and verifies its installer (network).
+    #[test]
+    #[ignore = "downloads from GitHub"]
+    fn downloads_and_verifies_the_latest_installer() {
+        let release = fetch_latest().unwrap().expect("a published release");
+        let dir = std::env::temp_dir().join(format!("caelestia-update-test-{}", std::process::id()));
+        let mut calls = 0;
+        let path = download_installer(&release, &dir, |_, _| calls += 1).unwrap();
+        assert!(path.metadata().unwrap().len() > 1_000_000 && calls > 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

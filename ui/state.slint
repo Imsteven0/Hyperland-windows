@@ -177,7 +177,8 @@ export global Shell {
     in property <[PluginWidget]> dash-plugins;
     in property <[PluginWidget]> plugin-list;
     // Update notice (Settings › About)
-    in property <string> update-state: "idle"; // idle | checking | available | current | error
+    in property <string> update-state: "idle"; // idle | checking | available | current | error | downloading | installing | failed
+    in property <float> update-progress; // 0..1 while downloading
     in property <string> update-version;
     // Dots import from GitHub (Settings › About)
     in property <string> dots-state: "idle"; // idle | fetching | ready | applied | error
