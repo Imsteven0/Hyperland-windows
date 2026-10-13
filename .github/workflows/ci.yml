@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build, test and lint (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --locked
+
+      # Includes the checks that every @tr() string has a Spanish translation,
+      # that the JSON schema covers every option and that every key the UI
+      # writes exists.
+      - name: Unit tests
+        run: cargo test --locked
+
+      # Clipboard, window-guard and notification tests need a desktop session;
+      # hosted runners usually have one, but don't block on it.
+      - name: Desktop integration tests
+        run: cargo test --locked -- --ignored --skip downloads_a_folder --test-threads=1
+        continue-on-error: true
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets

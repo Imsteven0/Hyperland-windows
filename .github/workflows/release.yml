@@ -1,0 +1,145 @@
+name: Release
+
+# Push a tag that matches Cargo.toml's version, e.g.:
+#   git tag v0.2.0 && git push origin v0.2.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    env:
+      # Optional code signing: add SIGN_CERT_PFX (base64 of a .pfx) and
+      # SIGN_CERT_PASSWORD as repository secrets. Without them the files are
+      # published unsigned and the release notes explain SmartScreen.
+      HAS_SIGNING: ${{ secrets.SIGN_CERT_PFX != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the tag matches Cargo.toml
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $ver = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ("v$ver" -ne $env:TAG) { throw "Tag $env:TAG doesn't match Cargo.toml version $ver" }
+          "VERSION=$ver" >> $env:GITHUB_ENV
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build
+        run: cargo build --locked --release
+
+      - name: Import signing certificate
+        if: env.HAS_SIGNING == 'true'
+        shell: pwsh
+        env:
+          SIGN_CERT_PFX: ${{ secrets.SIGN_CERT_PFX }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_CERT_PFX))
+          "SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+
+      - name: Sign the executable
+        if: env.HAS_SIGNING == 'true'
+        shell: pwsh
+        env:
+          SIGN_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+        run: |
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object FullName -like '*x64*' | Select-Object -Last 1
+          & $signtool.FullName sign /f $env:SIGN_PFX /p $env:SIGN_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 target\release\caelestia.exe
+          "SIGNTOOL=$($signtool.FullName)" >> $env:GITHUB_ENV
+
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          $stage = "dist\caelestia-win-$env:VERSION-x64"
+          New-Item -ItemType Directory -Force "$stage\assets\fonts" | Out-Null
+          Copy-Item target\release\caelestia.exe $stage
+          Copy-Item assets\fonts\* "$stage\assets\fonts"
+          Copy-Item LICENSE, README.md, README.es.md, THIRD_PARTY.md $stage
+          Copy-Item licenses -Destination $stage -Recurse
+          Compress-Archive -Path "$stage\*" -DestinationPath "dist\caelestia-win-$env:VERSION-x64.zip" -Force
+
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue
+          if (-not $iscc) { choco install innosetup --no-progress -y | Out-Null; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" } else { $iscc = $iscc.Source }
+          & $iscc /Qp "/DAppVersion=$env:VERSION" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - name: Sign the installer
+        if: env.HAS_SIGNING == 'true'
+        shell: pwsh
+        env:
+          SIGN_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+        run: |
+          & $env:SIGNTOOL sign /f $env:SIGN_PFX /p $env:SIGN_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 "dist\caelestia-win-$env:VERSION-setup.exe"
+
+      - name: Checksums and Scoop manifest
+        shell: pwsh
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          $zip = "dist\caelestia-win-$env:VERSION-x64.zip"
+          $files = @($zip, "dist\caelestia-win-$env:VERSION-setup.exe")
+          $files | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), (Split-Path $_ -Leaf) } | Set-Content dist\SHA256SUMS.txt
+          # `scoop install <url of this file>` works without any bucket.
+          $manifest = Get-Content packaging\scoop\caelestia.json -Raw | ConvertFrom-Json
+          $manifest.version = $env:VERSION
+          $manifest.url = "https://github.com/$env:REPO/releases/download/v$env:VERSION/caelestia-win-$env:VERSION-x64.zip"
+          $manifest.hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content dist\caelestia.json
+
+      - name: Release notes
+        shell: pwsh
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          $notes = Get-Content packaging\release-notes.md -Raw
+          $notes = $notes.Replace('{VERSION}', $env:VERSION).Replace('{REPO}', $env:REPO)
+          if ($env:HAS_SIGNING -eq 'true') { $notes = $notes -replace '(?s)<!-- unsigned -->.*?<!-- /unsigned -->', '' }
+          Set-Content dist\notes.md $notes
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Caelestia for Windows ${{ github.ref_name }}
+          body_path: dist/notes.md
+          files: |
+            dist/caelestia-win-*-setup.exe
+            dist/caelestia-win-*-x64.zip
+            dist/caelestia.json
+            dist/SHA256SUMS.txt
+
+  winget:
+    name: Update the winget package
+    needs: release
+    # Set the repository variable WINGET_ID (e.g. Imsteven0.Caelestia) and the
+    # secret WINGET_TOKEN (a classic PAT with public_repo) after the first
+    # manual submission (see packaging/README.md).
+    if: vars.WINGET_ID != ''
+    runs-on: windows-latest
+    steps:
+      - name: Submit to winget-pkgs
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          WINGET_ID: ${{ vars.WINGET_ID }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          $ver = $env:TAG.TrimStart('v')
+          $url = "https://github.com/$env:REPO/releases/download/v$ver/caelestia-win-$ver-setup.exe"
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe update $env:WINGET_ID --version $ver --urls $url --submit --token $env:WINGET_TOKEN

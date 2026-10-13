@@ -1,0 +1,15 @@
+{
+    "version": "0.0.0",
+    "description": "A Caelestia-inspired desktop shell for Windows (bar, dashboard, launcher, notifications).",
+    "homepage": "https://github.com/Imsteven0/Hyperland-windows",
+    "license": "GPL-3.0-only",
+    "url": "",
+    "hash": "",
+    "bin": "caelestia.exe",
+    "shortcuts": [["caelestia.exe", "Caelestia"]],
+    "notes": "Your dots live in ~\\.config\\caelestia. Run `caelestia quit` before `scoop update caelestia`.",
+    "checkver": "github",
+    "autoupdate": {
+        "url": "https://github.com/Imsteven0/Hyperland-windows/releases/download/v$version/caelestia-win-$version-x64.zip"
+    }
+}
