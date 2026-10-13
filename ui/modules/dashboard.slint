@@ -2,7 +2,7 @@
 // Performance / Weather tabs. Each tab has its own natural size and the panel
 // morphs between them (the native window stays put, sized for the largest).
 import { Theme } from "../theme.slint";
-import { Shell } from "../state.slint";
+import { Shell, PluginWidget } from "../state.slint";
 import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, CircularProgress, LinearProgress, Card, StyledSlider } from "../components/base.slint";
 import { DrawerFrame, Edge } from "../components/drawer.slint";
 import { Calendar } from "../components/calendar.slint";
@@ -319,8 +319,53 @@ component MediaCard inherits Card {
     }
 }
 
-component OverviewTab inherits HorizontalLayout {
+// A plugin with `"location": "dashboard"` (the default).
+component PluginCard inherits Card {
+    in property <PluginWidget> p;
+    property <color> tint: root.p.tone == "critical" ? Theme.c.error : root.p.tone == "warning" ? Theme.c.tertiary : root.p.tone == "good" ? Theme.c.success : Theme.c.primary;
+    level: 2;
+    StateLayer {
+        border-radius: parent.border-radius;
+        disabled: !root.p.clickable;
+        cursor: root.p.clickable ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { Shell.action("plugin-click", root.p.index); }
+    }
+    HorizontalLayout {
+        padding-left: Theme.padding-larger;
+        padding-right: Theme.padding-larger;
+        spacing: Theme.spacing-small;
+        MaterialIcon { text: root.p.icon; color: root.tint; font-size: Theme.font-large; }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            StyledText { text: root.p.text != "" ? root.p.text : root.p.name; font-size: Theme.font-normal; overflow: elide; }
+            StyledText {
+                text: root.p.error != "" ? root.p.error : root.p.tooltip != "" ? root.p.tooltip : root.p.name;
+                font-size: Theme.font-small;
+                color: root.p.error != "" ? Theme.c.error : Theme.c.on-surface-variant;
+                overflow: elide;
+            }
+            if root.p.has-percentage: Rectangle {
+                height: 4px;
+                border-radius: 2px;
+                background: Theme.c.surface-container-highest;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * root.p.percentage;
+                    border-radius: 2px;
+                    background: root.tint;
+                    animate width { duration: Theme.anim-normal; easing: cubic-bezier(0.2, 0, 0, 1); }
+                }
+            }
+        }
+    }
+}
+
+component OverviewTab inherits VerticalLayout {
     spacing: Theme.spacing-normal;
+    HorizontalLayout {
+    spacing: Theme.spacing-normal;
+    vertical-stretch: 1;
     VerticalLayout {
         spacing: Theme.spacing-normal;
         horizontal-stretch: 1;
@@ -347,6 +392,12 @@ component OverviewTab inherits HorizontalLayout {
         }
     }
     MediaCard { width: 220px; }
+    }
+    if Shell.dash-plugins.length > 0: HorizontalLayout {
+        height: 56px;
+        spacing: Theme.spacing-normal;
+        for plugin in Shell.dash-plugins: PluginCard { p: plugin; horizontal-stretch: 1; }
+    }
 }
 
 // ======================================================================
@@ -718,6 +769,8 @@ export component DashboardWindow inherits Window {
 
     in-out property <bool> open;
     in-out property <int> tab: 0;
+    // Extra height of the overview for the plugin row (0 without plugins).
+    property <length> plugin-row: Shell.dash-plugins.length > 0 ? 56px + Theme.spacing-normal : 0;
     out property <length> blur-x: frame.panel-x;
     out property <length> blur-y: frame.panel-y;
     out property <length> blur-w: frame.panel-w;
@@ -725,7 +778,7 @@ export component DashboardWindow inherits Window {
 
     // Natural size of each tab (content + tab bar + padding).
     property <[{w: length, h: length}]> sizes: [
-        { w: 800px, h: 444px },
+        { w: 800px, h: 444px + root.plugin-row },
         { w: 700px, h: 330px },
         { w: 900px, h: 400px },
         { w: 800px, h: 386px },
@@ -752,7 +805,7 @@ export component DashboardWindow inherits Window {
     }
 
     width: 900px + Theme.t.border-rounding * 2;
-    height: 444px;
+    height: 444px + root.plugin-row;
 
     frame := DrawerFrame {
         edge: Edge.top;

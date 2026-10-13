@@ -91,6 +91,9 @@ pub fn default_config() -> Value {
             "useTwelveHourClock": true,
             "smartScheme": true
         },
+        "plugins": {
+            "disabled": []
+        },
         "session": {
             "enabled": true
         },

@@ -2,7 +2,7 @@
 // clock, status icons and power button. Background is painted by BorderWindow
 // so the bar and the frame read as one continuous surface.
 import { Theme } from "../theme.slint";
-import { Shell } from "../state.slint";
+import { Shell, PluginWidget } from "../state.slint";
 import { StyledText, MaterialIcon, StateLayer } from "../components/base.slint";
 
 component WindowsLogo inherits Rectangle {
@@ -292,6 +292,35 @@ component StatusIcons inherits Rectangle {
     }
 }
 
+// A plugin with `"location": "bar"`: icon over a short text.
+component BarPlugin inherits Rectangle {
+    in property <PluginWidget> p;
+    property <color> tint: root.p.tone == "critical" ? Theme.c.error : root.p.tone == "warning" ? Theme.c.tertiary : root.p.tone == "good" ? Theme.c.success : Theme.c.secondary;
+    width: Theme.t.bar-width - 12px;
+    height: col.preferred-height + Theme.padding-small * 2;
+    border-radius: Theme.rounding-full;
+    StateLayer {
+        border-radius: parent.border-radius;
+        disabled: !root.p.clickable;
+        cursor: root.p.clickable ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { Shell.action("plugin-click", root.p.index); }
+    }
+    col := VerticalLayout {
+        padding: Theme.padding-small;
+        spacing: 1px;
+        alignment: center;
+        MaterialIcon { text: root.p.icon; color: root.tint; font-size: Theme.font-larger; }
+        if root.p.text != "": StyledText {
+            text: root.p.text;
+            color: root.tint;
+            font-family: Theme.t.font-mono;
+            font-size: Theme.font-small;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
 export component BarWindow inherits Window {
     title: "caelestia-bar";
     no-frame: true;
@@ -338,6 +367,11 @@ export component BarWindow inherits Window {
             ActiveWindow { }
         }
         if !Shell.cfg.bar-show-active-window: Rectangle { vertical-stretch: 1; }
+
+        for plugin in Shell.bar-plugins: HorizontalLayout {
+            alignment: center;
+            BarPlugin { p: plugin; }
+        }
 
         if Shell.cfg.bar-show-clock: HorizontalLayout {
             alignment: center;

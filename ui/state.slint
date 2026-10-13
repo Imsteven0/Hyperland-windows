@@ -57,6 +57,13 @@ export struct AudioDevice { id: string, name: string, default: bool }
 
 export struct BtDevice { id: string, name: string, icon: string, connected: bool, audio: bool, busy: bool }
 
+// A plugin widget (see services/plugins.rs). `index` is what
+// `plugin-click` takes; `tone` is "" | good | warning | critical.
+export struct PluginWidget {
+    index: int, id: string, name: string, icon: string, text: string, tooltip: string,
+    tone: string, percentage: float, has-percentage: bool, error: string, enabled: bool, clickable: bool,
+}
+
 // One option of a live-preview picker (scheme, variant, opacity).
 export struct PickerEntry { id: string, label: string, sublabel: string, bg: color, fg: color, c1: color, c2: color, c3: color, alpha: float, current: bool }
 
@@ -156,6 +163,10 @@ export global Shell {
     in property <string> place-status: "idle"; // idle | searching | none | error | detecting
     in property <string> cookie-path; // M3 expressive "cookie" shape, generated in Rust
     in property <string> komorebi-status: "stopped"; // not-installed | stopped | running | paused
+    // plugins: widgets in the bar / dashboard, and every folder for Settings
+    in property <[PluginWidget]> bar-plugins;
+    in property <[PluginWidget]> dash-plugins;
+    in property <[PluginWidget]> plugin-list;
     // Wallpaper download from GitHub (Settings › Wallpaper).
     in property <string> wallpaper-dl-state: "idle"; // idle | indexing | running | done | error
     in property <string> wallpaper-dl-text;

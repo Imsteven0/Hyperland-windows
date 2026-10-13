@@ -545,8 +545,27 @@ component UpdatesPage inherits VerticalLayout {
 
 component PluginsPage inherits VerticalLayout {
     spacing: 2px;
-    SettingRow { first: true; title: @tr("Installed plugins"); subtitle: @tr("Drop plugin folders into the dots `plugins` directory"); StyledText { text: "0"; color: Theme.c.outline; } }
-    ActionRow { last: true; title: @tr("Plugins folder"); icon: "folder_open"; button: @tr("Open"); clicked => { Shell.action("open-config-dir", "plugins"); } }
+    SettingRow {
+        first: true;
+        title: @tr("Installed plugins");
+        subtitle: @tr("Folders with a plugin.json in the dots `plugins` directory");
+        StyledText { text: Shell.plugin-list.length; color: Theme.c.outline; }
+    }
+    for p in Shell.plugin-list: SettingRow {
+        title: p.name;
+        subtitle: p.error != "" ? p.error : p.id;
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            if p.error != "": MaterialIcon { y: (parent.height - self.height) / 2; text: "error"; color: Theme.c.error; }
+            if p.error == "": StyledSwitch {
+                y: (parent.height - self.height) / 2;
+                checked: p.enabled;
+                toggled => { Shell.action("plugin-toggle", p.id); }
+            }
+        }
+    }
+    ActionRow { title: @tr("Reload plugins"); subtitle: @tr("Read the plugins folder again"); icon: "refresh"; button: @tr("Reload"); clicked => { Shell.action("plugins-reload", ""); } }
+    ActionRow { last: true; title: @tr("Plugins folder"); subtitle: @tr("Each plugin runs a command or script: only add plugins you trust"); icon: "folder_open"; button: @tr("Open"); clicked => { Shell.action("open-config-dir", "plugins"); } }
 }
 
 component TilingSection inherits VerticalLayout {

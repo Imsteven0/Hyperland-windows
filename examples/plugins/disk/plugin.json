@@ -1,0 +1,8 @@
+{
+  "name": "Disk C:",
+  "icon": "hard_drive",
+  "exec": ["powershell", "-NoProfile", "-Command", "$d = Get-PSDrive C; $p = [math]::Round($d.Used / ($d.Used + $d.Free) * 100); @{ text = \"$p%\"; percentage = $p; class = $(if ($p -gt 90) { 'critical' } else { '' }) } | ConvertTo-Json -Compress"],
+  "interval": 30000,
+  "onClick": ["explorer", "C:\\"],
+  "location": "bar"
+}

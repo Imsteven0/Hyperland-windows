@@ -9,6 +9,7 @@ pub mod icons;
 pub mod komorebi;
 pub mod media;
 pub mod perf;
+pub mod plugins;
 pub mod sysmon;
 pub mod temps;
 pub mod wallpaper_repo;
