@@ -98,6 +98,11 @@ pub fn default_config() -> Value {
         "windows": {
             "autostart": true,
             "blur": true,
+            "performance": {
+                "mode": "auto",
+                "onBattery": true,
+                "onFullscreen": true
+            },
             "komorebi": {
                 "enabled": false,
                 "autostart": true,

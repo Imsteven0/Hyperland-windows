@@ -36,6 +36,7 @@ use crate::{
         icons::{self, IconCache},
         komorebi::{self, KState, KStatus},
         media::{Media, MediaCommand, MediaSnapshot, fmt_time},
+        perf::{self, Reason as PerfReason},
         sysmon::{SysMonitor, SysSnapshot, fmt_bytes, fmt_gib},
         wallpaper_repo::{self, Download, Progress as DlProgress},
         weather::{WeatherQuery, WeatherService, WeatherSnapshot},
@@ -182,6 +183,8 @@ struct State {
     fuzzy: Fuzzy,
     /// Clipboard history (memory only), filled by `clip_watcher`.
     clips: ClipHistory,
+    /// Performance mode (reduced effects) and why.
+    perf: perf::Tracker,
     weather_query: Option<WeatherQuery>,
     settings_visible: bool,
 }
@@ -300,6 +303,7 @@ impl Caelestia {
                 audio_lists: Default::default(),
                 fuzzy: Fuzzy::default(),
                 clips: ClipHistory::new(50),
+                perf: perf::Tracker::new(2),
                 weather_query: None,
                 settings_visible: false,
             }),
@@ -644,7 +648,13 @@ impl Caelestia {
         timers.push(every(30_000, Caelestia::refresh_recordings));
         timers.push(every(2_000, Caelestia::sync_screens));
         timers.push(every(5_000, Caelestia::refresh_dnd));
-        timers.push(every(1_000, |app| app.ghosts.borrow_mut().scan()));
+        timers.push(every(1_000, |app| {
+            // Full-screen games: skip the window scan (process snapshot) entirely.
+            if app.perf_reason() != Some(PerfReason::Fullscreen) {
+                app.ghosts.borrow_mut().scan();
+            }
+        }));
+        timers.push(every(2_000, Caelestia::refresh_perf));
     }
 
     fn start_watcher(&self) {
@@ -661,6 +671,42 @@ impl Caelestia {
 
     fn bar_width(&self) -> f32 {
         self.cfg.borrow().f32("bar.sizes.innerWidth").max(24.0) + 8.0
+    }
+
+    fn perf_reason(&self) -> Option<PerfReason> {
+        self.st.borrow().perf.state()
+    }
+
+    /// Animation speed, or (almost) instant while in performance mode.
+    fn anim_scale(&self) -> f32 {
+        if self.perf_reason().is_some() { 0.0 } else { self.cfg.borrow().f32("appearance.anim.durations.scale") }
+    }
+
+    /// Re-evaluates performance mode (every 2 s and on config changes).
+    fn refresh_perf(&self) {
+        let policy = {
+            let cfg = self.cfg.borrow();
+            perf::Policy {
+                setting: perf::Setting::parse(&cfg.str("windows.performance.mode")),
+                on_battery: cfg.bool("windows.performance.onBattery"),
+                on_fullscreen: cfg.bool("windows.performance.onFullscreen"),
+            }
+        };
+        // Skip the system queries when the answer can't depend on them.
+        let inputs = if policy.setting == perf::Setting::Auto {
+            let b = system::battery();
+            perf::Inputs { on_battery: b.on_battery, battery_saver: b.saver, fullscreen: policy.on_fullscreen && win::fullscreen_foreground() }
+        } else {
+            perf::Inputs::default()
+        };
+        let changed = self.st.borrow_mut().perf.update(perf::decide(policy, inputs));
+        if let Some(state) = changed {
+            log::info!("performance mode: {}", state.map(PerfReason::id).unwrap_or("off"));
+            self.apply_config(); // also re-applies the bar blur
+            if state.is_some() {
+                self.update_blur(); // hides the panes now; the loop stops itself
+            }
+        }
     }
 
     fn apply_config(&self) {
@@ -688,7 +734,7 @@ impl Caelestia {
             spacing_scale: cfg.f32("appearance.spacing.scale"),
             padding_scale: cfg.f32("appearance.padding.scale"),
             font_scale: cfg.f32("appearance.font.size.scale"),
-            anim_scale: cfg.f32("appearance.anim.durations.scale"),
+            anim_scale: self.anim_scale(),
             transparency: cfg.bool("appearance.transparency.enabled"),
             base_alpha: cfg.f32("appearance.transparency.base"),
             layer_alpha: cfg.f32("appearance.transparency.layers"),
@@ -728,7 +774,7 @@ impl Caelestia {
             scheme_mode: scheme.mode.clone().into(),
             scheme_name: scheme.name.clone().into(),
             smart_scheme: cfg.bool("services.smartScheme"),
-            anim_scale: cfg.f32("appearance.anim.durations.scale"),
+            anim_scale: self.anim_scale(),
             blur: cfg.bool("windows.blur"),
             super_launcher: cfg.str("windows.shortcuts.launcher").eq_ignore_ascii_case("super"),
             wallpaper_repo: cfg.str("paths.wallpaperRepo").into(),
@@ -749,6 +795,10 @@ impl Caelestia {
             base_alpha: tokens.base_alpha,
             layer_alpha: tokens.layer_alpha,
             config_path: cfg.paths.shell_json.display().to_string().into(),
+            perf_mode: cfg.str("windows.performance.mode").into(),
+            perf_on_battery: cfg.bool("windows.performance.onBattery"),
+            perf_on_fullscreen: cfg.bool("windows.performance.onFullscreen"),
+            perf_active: self.perf_reason().map(PerfReason::id).unwrap_or_default().into(),
         };
         let dark = scheme.is_dark();
         each_window!(self, w => {
@@ -850,6 +900,9 @@ impl Caelestia {
             log::error!("saving config: {e:#}");
         }
         self.apply_config();
+        if path.starts_with("windows.performance.") {
+            self.refresh_perf();
+        }
         if path == "windows.komorebi.enabled" {
             let on = self.cfg.borrow().bool("windows.komorebi.enabled");
             let status = self.st.borrow().komorebi.clone();
@@ -1045,7 +1098,7 @@ impl Caelestia {
     fn layout_screens(&self) {
         let (bar_l, t_l, r_l, persistent, blur) = {
             let cfg = self.cfg.borrow();
-            let blur = cfg.bool("appearance.transparency.enabled") && cfg.bool("windows.blur");
+            let blur = cfg.bool("appearance.transparency.enabled") && cfg.bool("windows.blur") && self.perf_reason().is_none();
             (self.bar_width(), cfg.f32("border.thickness"), cfg.f32("border.rounding"), cfg.bool("bar.persistent"), blur)
         };
         for s in self.screens.borrow_mut().iter_mut() {
@@ -1250,7 +1303,7 @@ impl Caelestia {
         }
         // Hide once the close animation has finished, unless reopened meanwhile.
         let weak = self.weak.clone();
-        let anim = (300.0 * self.cfg.borrow().f64("appearance.anim.durations.scale").max(0.1)) as u64;
+        let anim = (300.0 * self.anim_scale().max(0.1)) as u64;
         Timer::single_shot(Duration::from_millis(anim + 60), move || {
             if let Some(app) = weak.upgrade() {
                 let ds = app.st.borrow().drawers[d as usize];
@@ -1306,7 +1359,7 @@ impl Caelestia {
         } else {
             self.settings.set_shown(false);
             let weak = self.weak.clone();
-            let anim = (260.0 * self.cfg.borrow().f64("appearance.anim.durations.scale").max(0.1)) as u64;
+            let anim = (260.0 * self.anim_scale().max(0.1)) as u64;
             Timer::single_shot(Duration::from_millis(anim), move || {
                 if let Some(app) = weak.upgrade() {
                     if !app.st.borrow().settings_visible {
@@ -1339,8 +1392,10 @@ impl Caelestia {
         let cfg = self.cfg.borrow();
         let t = (cfg.f32("border.thickness") * s).round() as i32;
         let edge = t.max(2) + 2;
-        let dash_on = cfg.bool("dashboard.enabled") && cfg.bool("dashboard.showOnHover");
-        let util_on = cfg.bool("utilities.enabled") && cfg.bool("utilities.showOnHover");
+        // A full-screen game must never get a drawer from the mouse touching an edge.
+        let hover_ok = self.perf_reason() != Some(PerfReason::Fullscreen);
+        let dash_on = hover_ok && cfg.bool("dashboard.enabled") && cfg.bool("dashboard.showOnHover");
+        let util_on = hover_ok && cfg.bool("utilities.enabled") && cfg.bool("utilities.showOnHover");
         drop(cfg);
 
         let check = |d: Drawer, zone: Rect| {
@@ -1425,7 +1480,7 @@ impl Caelestia {
         let (enabled, border_r, settings_r) = {
             let cfg = self.cfg.borrow();
             (
-                cfg.bool("appearance.transparency.enabled") && cfg.bool("windows.blur"),
+                cfg.bool("appearance.transparency.enabled") && cfg.bool("windows.blur") && self.perf_reason().is_none(),
                 cfg.f32("border.rounding"),
                 25.0 * cfg.f32("appearance.rounding.scale"),
             )

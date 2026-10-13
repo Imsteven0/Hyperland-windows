@@ -82,7 +82,7 @@ export component UtilitiesWindow inherits Window {
     out property <length> blur-w: frame.panel-w;
     out property <length> blur-h: frame.panel-h;
 
-    property <length> panel-w: 300px;
+    property <length> panel-w: 320px;
     property <length> panel-h: col.preferred-height;
     width: root.panel-w + Theme.t.border-rounding;
     height: root.panel-h + Theme.t.border-rounding;
@@ -177,7 +177,7 @@ export component UtilitiesWindow inherits Window {
                     spacing: Theme.spacing-small;
                     StyledText { text: @tr("Quick Toggles"); font-size: Theme.font-normal; }
                     HorizontalLayout {
-                        spacing: Theme.spacing-small;
+                        spacing: 4px;
                         alignment: space-between;
                         IconButton {
                             icon: Shell.status.wifi-available ? "wifi" : "wifi_off";
@@ -208,6 +208,13 @@ export component UtilitiesWindow inherits Window {
                             kind: ButtonKind.tonal; checkable: true; toggled: false;
                             size: 34px; icon-size: Theme.font-larger;
                             clicked => { Shell.action("game-bar", ""); }
+                        }
+                        IconButton {
+                            // Performance mode: forced on, or back to automatic.
+                            icon: Shell.cfg.perf-active != "" ? "eco" : "speed";
+                            kind: ButtonKind.tonal; checkable: true; toggled: Shell.cfg.perf-active != "";
+                            size: 34px; icon-size: Theme.font-larger;
+                            clicked => { Shell.set-config("windows.performance.mode", Shell.cfg.perf-mode == "on" ? "\"auto\"" : "\"on\""); }
                         }
                         IconButton {
                             icon: Shell.dnd ? "notifications_off" : "notifications";

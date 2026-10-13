@@ -131,6 +131,10 @@ pub struct Battery {
     pub present: bool,
     pub percent: f32,
     pub charging: bool,
+    /// Unplugged (running on the battery).
+    pub on_battery: bool,
+    /// Windows' battery/energy saver is on.
+    pub saver: bool,
 }
 
 pub fn battery() -> Battery {
@@ -140,7 +144,14 @@ pub fn battery() -> Battery {
     }
     // BatteryFlag 128 = no system battery, 255 = unknown.
     let present = s.BatteryFlag & 128 == 0 && s.BatteryFlag != 255 && s.BatteryLifePercent <= 100;
-    Battery { present, percent: s.BatteryLifePercent.min(100) as f32 / 100.0, charging: s.ACLineStatus == 1 }
+    Battery {
+        present,
+        percent: s.BatteryLifePercent.min(100) as f32 / 100.0,
+        charging: s.ACLineStatus == 1,
+        // ACLineStatus 0 = offline, 255 = unknown (desktops report 1).
+        on_battery: present && s.ACLineStatus == 0,
+        saver: s.SystemStatusFlag == 1,
+    }
 }
 
 // ---------------- registry helpers ----------------

@@ -112,6 +112,12 @@ export struct UiConfig {
     base-alpha: float,
     layer-alpha: float,
     config-path: string,
+    // windows.performance: mode auto|on|off; `perf-active` is why effects are
+    // reduced right now ("" | forced | battery | fullscreen).
+    perf-mode: string,
+    perf-on-battery: bool,
+    perf-on-fullscreen: bool,
+    perf-active: string,
 }
 
 export global Shell {
@@ -161,6 +167,7 @@ export global Shell {
         wallpaper-enabled: true, scheme-variant: "tonalspot", scheme-mode: "dark", scheme-name: "dynamic", smart-scheme: true, anim-scale: 1, blur: true, super-launcher: false, wallpaper-repo: "", autostart: true, language: "en",
         border-thickness: 10, border-rounding: 25, rounding-scale: 1, font-scale: 1,
         transparency: false, base-alpha: 0.85, layer-alpha: 0.4,
+        perf-mode: "auto", perf-on-battery: true, perf-on-fullscreen: true,
     };
 
     // UI -> Rust

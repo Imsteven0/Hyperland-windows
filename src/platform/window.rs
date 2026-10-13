@@ -279,6 +279,53 @@ pub fn foreground_window() -> HWND {
     unsafe { GetForegroundWindow() }
 }
 
+/// Whether the foreground app is full screen (game, video, presentation).
+/// The shell's notification state covers exclusive/D3D full screen; borderless
+/// windows are caught by comparing the window with its monitor.
+pub fn fullscreen_foreground() -> bool {
+    use windows::Win32::{
+        Graphics::Gdi::{MONITOR_DEFAULTTONULL, MonitorFromWindow},
+        UI::{
+            Shell::{QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState},
+            WindowsAndMessaging::{GWL_STYLE, GetClassNameW, GetWindowRect, IsWindowVisible, WS_CAPTION},
+        },
+    };
+    let hwnd = foreground_window();
+    if hwnd.is_invalid() {
+        return false;
+    }
+    unsafe {
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid == std::process::id() {
+            return false; // our own drawers
+        }
+        if matches!(SHQueryUserNotificationState(), Ok(QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)) {
+            return true;
+        }
+        if !IsWindowVisible(hwnd).as_bool() || GetWindowLongPtrW(hwnd, GWL_STYLE) as u32 & WS_CAPTION.0 == WS_CAPTION.0 {
+            return false; // maximised windows keep their caption
+        }
+        let mut class = [0u16; 32];
+        let n = GetClassNameW(hwnd, &mut class) as usize;
+        if matches!(String::from_utf16_lossy(&class[..n]).as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd") {
+            return false; // the desktop itself
+        }
+        let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
+        if hmon.is_invalid() {
+            return false;
+        }
+        let mon = monitor_info(hmon).rect;
+        let mut r = RECT::default();
+        GetWindowRect(hwnd, &mut r).is_ok() && covers(Rect::from(r), mon)
+    }
+}
+
+/// A window "covers" a monitor when it spans all of it (overshoot allowed).
+fn covers(win: Rect, mon: Rect) -> bool {
+    win.left <= mon.left && win.top <= mon.top && win.right >= mon.right && win.bottom >= mon.bottom
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Monitor {
     /// GDI device name, e.g. `\.\DISPLAY2` (used by `bar.excludedScreens`).
@@ -496,5 +543,28 @@ impl Drop for AppBar {
             }
             let _ = DestroyWindow(self.hwnd);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_screen_coverage() {
+        let mon = Rect { left: 0, top: 0, right: 1920, bottom: 1080 };
+        assert!(covers(mon, mon));
+        assert!(covers(Rect { left: -8, top: -8, right: 1928, bottom: 1088 }, mon));
+        assert!(!covers(Rect { left: 0, top: 0, right: 1920, bottom: 1040 }, mon), "work area only (taskbar visible)");
+        let second = Rect { left: 1920, top: 0, right: 3840, bottom: 1080 };
+        assert!(!covers(mon, second));
+    }
+
+    #[test]
+    fn rect_helpers() {
+        let r = Rect { left: 10, top: 20, right: 110, bottom: 70 };
+        assert_eq!((r.width(), r.height()), (100, 50));
+        assert!(r.contains(10, 20) && !r.contains(110, 70));
+        assert_eq!(r.inflate(5), Rect { left: 5, top: 15, right: 115, bottom: 75 });
     }
 }

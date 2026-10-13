@@ -622,6 +622,26 @@ component PanelsPage inherits VerticalLayout {
             toggled(v) => { Shell.set-config("windows.shortcuts.launcher", v ? "\"Super\"" : "\"Alt+Space\""); }
         }
     }
+    SectionLabel { text: @tr("Performance"); }
+    SettingRow {
+        first: true;
+        title: @tr("Performance mode");
+        subtitle: Shell.cfg.perf-active == "fullscreen" ? @tr("Active · a full-screen app is in front")
+            : Shell.cfg.perf-active == "battery" ? @tr("Active · on battery")
+            : Shell.cfg.perf-active == "forced" ? @tr("Active · always on")
+            : @tr("Pauses blur, animations and hover-to-open");
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            for m in [{ id: "auto", name: @tr("Automatic") }, { id: "on", name: @tr("On") }, { id: "off", name: @tr("Off") }]: Chip {
+                y: (parent.height - self.height) / 2;
+                text: m.name;
+                selected: Shell.cfg.perf-mode == m.id;
+                clicked => { Shell.set-config("windows.performance.mode", "\"" + m.id + "\""); }
+            }
+        }
+    }
+    SwitchRow { title: @tr("On battery"); subtitle: @tr("Also when Windows' energy saver is on"); key: "windows.performance.onBattery"; value: Shell.cfg.perf-on-battery; }
+    SwitchRow { last: true; title: @tr("With full-screen games and videos"); subtitle: @tr("Drawers never open from the screen edges meanwhile"); key: "windows.performance.onFullscreen"; value: Shell.cfg.perf-on-fullscreen; }
     SectionLabel { text: @tr("Startup"); }
     SwitchRow { first: true; last: true; title: @tr("Start with Windows"); subtitle: @tr("Open Caelestia when you sign in"); key: "windows.autostart"; value: Shell.cfg.autostart; }
     TilingSection { }
