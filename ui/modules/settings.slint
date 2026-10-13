@@ -622,6 +622,7 @@ component PanelsPage inherits VerticalLayout {
     SwitchRow { title: @tr("Active window"); key: "bar.activeWindow.enabled"; value: Shell.cfg.bar-show-active-window; }
     SwitchRow { title: @tr("Clock"); key: "bar.clock.enabled"; value: Shell.cfg.bar-show-clock; }
     SwitchRow { title: @tr("Status icons"); key: "bar.status.enabled"; value: Shell.cfg.bar-show-status; }
+    SwitchRow { title: @tr("Notifications icon"); subtitle: @tr("Bell with the number of notifications; opens the notification center"); key: "bar.status.showNotifications"; value: Shell.cfg.bar-show-notifications; }
     SwitchRow { last: true; title: @tr("Power button"); key: "bar.power.enabled"; value: Shell.cfg.bar-show-power; }
     SectionLabel { text: @tr("Border"); }
     SliderRow { first: true; title: @tr("Thickness"); key: "border.thickness"; value: Shell.cfg.border-thickness; minimum: 0; maximum: 30; step: 1; decimals: 0; }

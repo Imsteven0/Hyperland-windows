@@ -4,7 +4,7 @@
 import { Theme } from "../theme.slint";
 import { Flare, FlareCorner } from "base.slint";
 
-export enum Edge { top, bottom, left, right, bottom-right }
+export enum Edge { top, bottom, left, right, bottom-right, top-right }
 
 export component DrawerFrame inherits Rectangle {
     in property <Edge> edge: Edge.top;
@@ -19,8 +19,8 @@ export component DrawerFrame inherits Rectangle {
     out property <length> panel-y: panel.y;
     out property <length> panel-w: panel.width;
     out property <length> panel-h: panel.height;
-    out property <length> full-width: root.edge == Edge.right || root.edge == Edge.left ? root.panel-width : root.edge == Edge.bottom-right ? root.panel-width + root.flare : root.panel-width + root.flare * 2;
-    out property <length> full-height: root.edge == Edge.right || root.edge == Edge.left ? root.panel-height + root.flare * 2 : root.edge == Edge.bottom-right ? root.panel-height + root.flare : root.panel-height;
+    out property <length> full-width: root.edge == Edge.right || root.edge == Edge.left ? root.panel-width : root.edge == Edge.bottom-right || root.edge == Edge.top-right ? root.panel-width + root.flare : root.panel-width + root.flare * 2;
+    out property <length> full-height: root.edge == Edge.right || root.edge == Edge.left ? root.panel-height + root.flare * 2 : root.edge == Edge.bottom-right || root.edge == Edge.top-right ? root.panel-height + root.flare : root.panel-height;
 
     animate progress {
         duration: root.open ? Theme.anim-normal : Theme.anim-small + 50ms;
@@ -76,11 +76,22 @@ export component DrawerFrame inherits Rectangle {
         corner: FlareCorner.bottom-right; color: root.fill-col;
     }
 
+    // top-right: mirror of bottom-right (flare left of the panel along the
+    // top border, and one under it along the right border).
+    if root.edge == Edge.top-right: Flare {
+        x: root.flare - self.width; y: 0; width: root.f; height: root.f;
+        corner: FlareCorner.top-right; color: root.fill-col;
+    }
+    if root.edge == Edge.top-right: Flare {
+        x: root.width - self.width; y: root.extent; width: root.f; height: root.f;
+        corner: FlareCorner.top-right; color: root.fill-col;
+    }
+
     // ---- panel ----
     panel := Rectangle {
         x: root.edge == Edge.right ? root.width - root.extent : root.edge == Edge.left ? 0
-            : root.edge == Edge.bottom-right ? root.flare : root.cx0;
-        y: root.edge == Edge.top ? 0
+            : root.edge == Edge.bottom-right || root.edge == Edge.top-right ? root.flare : root.cx0;
+        y: root.edge == Edge.top || root.edge == Edge.top-right ? 0
             : root.edge == Edge.left ? (root.height - root.panel-height) / 2
             : root.edge == Edge.right ? root.flare
             : root.edge == Edge.bottom-right ? root.flare + root.panel-height - root.extent
@@ -90,15 +101,15 @@ export component DrawerFrame inherits Rectangle {
         clip: true;
         background: root.fill-col;
         animate background { duration: Theme.anim-normal; }
-        border-top-left-radius: root.edge == Edge.top || root.edge == Edge.left ? 0 : root.f;
-        border-top-right-radius: root.edge == Edge.top || root.edge == Edge.right || root.edge == Edge.bottom-right ? 0 : root.f;
+        border-top-left-radius: root.edge == Edge.top || root.edge == Edge.left || root.edge == Edge.top-right ? 0 : root.f;
+        border-top-right-radius: root.edge == Edge.top || root.edge == Edge.right || root.edge == Edge.bottom-right || root.edge == Edge.top-right ? 0 : root.f;
         border-bottom-left-radius: root.edge == Edge.bottom || root.edge == Edge.left || root.edge == Edge.bottom-right ? 0 : root.f;
-        border-bottom-right-radius: root.edge == Edge.bottom || root.edge == Edge.right || root.edge == Edge.bottom-right ? 0 : root.f;
+        border-bottom-right-radius: root.edge == Edge.bottom || root.edge == Edge.right || root.edge == Edge.bottom-right || root.edge == Edge.top-right ? 0 : root.f;
 
         // Content keeps its full size and slides in with the panel edge.
         content := Rectangle {
             x: root.edge == Edge.left ? root.extent - root.panel-width : 0;
-            y: root.edge == Edge.top ? root.extent - root.panel-height : 0;
+            y: root.edge == Edge.top || root.edge == Edge.top-right ? root.extent - root.panel-height : 0;
             width: root.panel-width;
             height: root.panel-height;
             opacity: Math.clamp(root.progress * 1.6 - 0.3, 0, 1);

@@ -53,7 +53,8 @@ pub fn default_config() -> Value {
                 "showBattery": true,
                 "showBluetooth": true,
                 "showNetwork": true,
-                "showMicrophone": true
+                "showMicrophone": true,
+                "showNotifications": true
             },
             "workspaces": { "shown": 5, "activeIndicator": true, "activeTrail": true, "showWindows": false }
         },
@@ -123,6 +124,7 @@ pub fn default_config() -> Value {
                 "dashboard": "Ctrl+Alt+KeyD",
                 "utilities": "Ctrl+Alt+KeyU",
                 "session": "Ctrl+Alt+KeyP",
+                "sidebar": "Ctrl+Alt+KeyN",
                 "settings": "Ctrl+Alt+KeyS"
             }
         }

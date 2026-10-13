@@ -1,7 +1,7 @@
 //! Tiny IPC so the running shell can be driven from the command line, in the
 //! spirit of `caelestia shell drawers toggle launcher`:
 //!
-//!   caelestia toggle launcher|dashboard|utilities|session|settings
+//!   caelestia toggle launcher|dashboard|utilities|session|sidebar|settings
 //!   caelestia dashboard 0|1|2|3   (overview, media, performance, weather)
 //!   caelestia launcher calc|emoji|clipboard
 //!   caelestia reload
@@ -19,13 +19,14 @@ use windows::{
     core::HSTRING,
 };
 
-pub const COMMANDS: [&str; 31] = [
+pub const COMMANDS: [&str; 32] = [
     "quit",
     "reload",
     "toggle:launcher",
     "toggle:dashboard",
     "toggle:utilities",
     "toggle:session",
+    "toggle:sidebar",
     "toggle:settings",
     // `caelestia dashboard <tab>` opens the dashboard on a tab.
     "dashboard:0",

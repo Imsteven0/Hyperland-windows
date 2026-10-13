@@ -64,6 +64,10 @@ export struct PluginWidget {
     tone: string, percentage: float, has-percentage: bool, error: string, enabled: bool, clickable: bool,
 }
 
+// Notification center (sidebar): groups per app, newest first.
+export struct NotifItem { id: int, title: string, body: string, time: string }
+export struct NotifGroup { app-id: string, app: string, icon: image, has-icon: bool, time: string, count: int, more: int, expanded: bool, items: [NotifItem] }
+
 // One option of a live-preview picker (scheme, variant, opacity).
 export struct PickerEntry { id: string, label: string, sublabel: string, bg: color, fg: color, c1: color, c2: color, c3: color, alpha: float, current: bool }
 
@@ -83,6 +87,7 @@ export struct UiConfig {
     bar-show-network: bool,
     bar-show-bluetooth: bool,
     bar-show-battery: bool,
+    bar-show-notifications: bool,
     clock-12h: bool,
     dashboard-enabled: bool,
     dashboard-show-on-hover: bool,
@@ -163,6 +168,10 @@ export global Shell {
     in property <string> place-status: "idle"; // idle | searching | none | error | detecting
     in property <string> cookie-path; // M3 expressive "cookie" shape, generated in Rust
     in property <string> komorebi-status: "stopped"; // not-installed | stopped | running | paused
+    // notification center
+    in property <[NotifGroup]> notif-groups;
+    in property <int> notif-count;
+    in property <string> notif-access: "allowed"; // allowed | denied | unsupported
     // plugins: widgets in the bar / dashboard, and every folder for Settings
     in property <[PluginWidget]> bar-plugins;
     in property <[PluginWidget]> dash-plugins;
@@ -181,7 +190,7 @@ export global Shell {
     in property <UiConfig> cfg: {
         bar-persistent: true, bar-show-workspaces: true, bar-workspaces-shown: 5, bar-active-trail: true,
         bar-show-active-window: true, bar-show-clock: true, bar-show-status: true, bar-show-power: true,
-        bar-show-audio: true, bar-show-network: true, bar-show-bluetooth: true, bar-show-battery: true,
+        bar-show-audio: true, bar-show-network: true, bar-show-bluetooth: true, bar-show-battery: true, bar-show-notifications: true,
         clock-12h: true, dashboard-enabled: true, dashboard-show-on-hover: true,
         launcher-max-shown: 7, launcher-action-prefix: ">", clipboard-history: true, use-fahrenheit: false,
         wallpaper-enabled: true, scheme-variant: "tonalspot", scheme-mode: "dark", scheme-name: "dynamic", smart-scheme: true, anim-scale: 1, blur: true, super-launcher: false, wallpaper-repo: "", autostart: true, language: "en",

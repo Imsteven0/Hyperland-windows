@@ -16,7 +16,7 @@ use serde_json::Value;
 use slint::{ComponentHandle, Image, ModelRc, PhysicalPosition, SharedString, Timer, TimerMode, VecModel};
 
 use crate::{
-    AppEntry, AudioDevice as UiAudioDevice, PickerEntry, PluginWidget, Place, BarWindow, BtDevice as UiBtDevice, BorderWindow, CalendarDay, DashboardWindow, ForecastDay, InfoRow, LauncherWindow, MediaInfo, PopoutWindow, Recording, SessionWindow,
+    AppEntry, AudioDevice as UiAudioDevice, NotifGroup, NotifItem, PickerEntry, PluginWidget, SidebarWindow, Place, BarWindow, BtDevice as UiBtDevice, BorderWindow, CalendarDay, DashboardWindow, ForecastDay, InfoRow, LauncherWindow, MediaInfo, PopoutWindow, Recording, SessionWindow,
     SchemeCard, SettingsWindow, Shell as ShellGlobal, Status, SysStats, Theme, Tokens, UiConfig, UserInfo, UtilitiesWindow, WallpaperEntry, Weather, Workspace,
     config::{Config, Paths, watch::{Changed, Watcher}},
     hotkeys::Hotkeys,
@@ -37,6 +37,7 @@ use crate::{
         icons::{self, IconCache},
         komorebi::{self, KState, KStatus},
         media::{Media, MediaCommand, MediaSnapshot, fmt_time},
+        notifications::{self, AccessState, NotifCommand, NotifEvent, Notifications},
         perf::{self, Reason as PerfReason},
         plugins::{self, Plugin, Runner as PluginRunner},
         sysmon::{SysMonitor, SysSnapshot, fmt_bytes, fmt_gib},
@@ -59,6 +60,7 @@ macro_rules! each_window {
         { let $w = &$app.launcher; $body; }
         { let $w = &$app.utilities; $body; }
         { let $w = &$app.session; $body; }
+        { let $w = &$app.sidebar; $body; }
         { let $w = &$app.settings; $body; }
     }};
 }
@@ -69,16 +71,19 @@ pub enum Drawer {
     Launcher = 1,
     Utilities = 2,
     Session = 3,
+    /// Notification center (Caelestia's sidebar), top-right corner.
+    Sidebar = 4,
 }
 
 impl Drawer {
-    const ALL: [Drawer; 4] = [Drawer::Dashboard, Drawer::Launcher, Drawer::Utilities, Drawer::Session];
+    const ALL: [Drawer; 5] = [Drawer::Dashboard, Drawer::Launcher, Drawer::Utilities, Drawer::Session, Drawer::Sidebar];
     fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "dashboard" => Self::Dashboard,
             "launcher" => Self::Launcher,
             "utilities" => Self::Utilities,
             "session" => Self::Session,
+            "sidebar" | "notifications" => Self::Sidebar,
             _ => return None,
         })
     }
@@ -145,7 +150,7 @@ struct State {
     /// Last border colours pushed to komorebi (avoid re-sending on every apply).
     komorebi_colours: String,
     komorebi_autostarted: bool,
-    drawers: [DrawerState; 4],
+    drawers: [DrawerState; 5],
     popout: PopoutState,
     active_title: (String, String),
     desktops: Desktops,
@@ -191,6 +196,10 @@ struct State {
     plugin_results: Vec<Option<Result<plugins::Output, String>>>,
     plugin_listing: Vec<PluginListing>,
     plugin_gen: u64,
+    /// Notification center: current list, app logos, groups shown expanded.
+    notifs: Vec<notifications::Notif>,
+    notif_icons: std::collections::HashMap<String, Image>,
+    notif_expanded: std::collections::HashSet<String>,
     /// Dots fetched from GitHub, waiting for "Apply"; the generation drops
     /// previews that arrive after a newer request.
     dots_preview: Option<dots_repo::Preview>,
@@ -217,6 +226,7 @@ struct Picker {
 }
 
 struct Services {
+    notifications: Notifications,
     sysmon: SysMonitor,
     media: Media,
     weather: WeatherService,
@@ -233,6 +243,7 @@ pub struct Caelestia {
     launcher: LauncherWindow,
     utilities: UtilitiesWindow,
     session: SessionWindow,
+    sidebar: SidebarWindow,
     settings: SettingsWindow,
     st: RefCell<State>,
     svc: RefCell<Option<Services>>,
@@ -242,7 +253,7 @@ pub struct Caelestia {
     startup_timer: Timer,
     settings_thumb_timer: Timer,
     /// One blur pane per translucent surface (dashboard, launcher, utilities,
-    /// session, popout, settings), created lazily.
+    /// session, popout, settings, sidebar), created lazily.
     blur_panes: RefCell<Vec<Option<crate::platform::blur::BlurPane>>>,
     blur_timer: Timer,
     /// App icons for the bar's workspaces.
@@ -292,6 +303,7 @@ impl Caelestia {
             launcher: LauncherWindow::new().expect("launcher window"),
             utilities: UtilitiesWindow::new().expect("utilities window"),
             session: SessionWindow::new().expect("session window"),
+            sidebar: SidebarWindow::new().expect("sidebar window"),
             settings: SettingsWindow::new().expect("settings window"),
             st: RefCell::new(State {
                 komorebi: KStatus::Stopped,
@@ -331,6 +343,9 @@ impl Caelestia {
                 plugin_results: Vec::new(),
                 plugin_listing: Vec::new(),
                 plugin_gen: 0,
+                notifs: Vec::new(),
+                notif_icons: Default::default(),
+                notif_expanded: Default::default(),
                 dots_preview: None,
                 dots_gen: 0,
                 weather_query: None,
@@ -342,7 +357,7 @@ impl Caelestia {
             thumb_timer: Timer::default(),
             startup_timer: Timer::default(),
             settings_thumb_timer: Timer::default(),
-            blur_panes: RefCell::new((0..6).map(|_| None).collect()),
+            blur_panes: RefCell::new((0..7).map(|_| None).collect()),
             blur_timer: Timer::default(),
             ghosts: RefCell::default(),
             icons: IconCache::new(40, |key, buf| {
@@ -657,10 +672,113 @@ impl Caelestia {
         self.st.borrow_mut().weather_query = Some(q.clone());
         let weather = WeatherService::spawn(q, |snap| post(move |app| app.on_weather(snap)));
         let net = Connectivity::spawn(|snap| post(move |app| app.on_net(snap)));
-        *self.svc.borrow_mut() = Some(Services { sysmon, media, weather, net });
+        let notifications = Notifications::spawn(|ev| post(move |app| app.on_notif_event(ev)));
+        *self.svc.borrow_mut() = Some(Services { notifications, sysmon, media, weather, net });
         drop(cfg);
         *self.plugin_runner.borrow_mut() = Some(PluginRunner::spawn(|u| post(move |app| app.on_plugin_update(u))));
         self.load_plugins();
+    }
+
+    // ------------------------------------------------------------------
+    // notification center
+    // ------------------------------------------------------------------
+
+    fn on_notif_event(&self, ev: NotifEvent) {
+        match ev {
+            NotifEvent::Access(state) => {
+                if state != AccessState::Allowed {
+                    log::info!("notification access: {}", state.id());
+                }
+                each_window!(self, w => w.global::<ShellGlobal>().set_notif_access(state.id().into()));
+            }
+            NotifEvent::Icon(app_id, buf) => {
+                self.st.borrow_mut().notif_icons.insert(app_id, Image::from_rgba8(buf));
+                self.push_notifications();
+            }
+            NotifEvent::List(list) => {
+                {
+                    let mut st = self.st.borrow_mut();
+                    // Forget the expanded state of apps that have nothing left.
+                    st.notif_expanded.retain(|id| list.iter().any(|n| &n.app_id == id));
+                    st.notifs = list;
+                }
+                self.push_notifications();
+            }
+        }
+    }
+
+    /// Groups -> the sidebar; the count -> every bar.
+    fn push_notifications(&self) {
+        const COLLAPSED: usize = 3;
+        let now = chrono::Utc::now().timestamp();
+        let ago = |at: i64| crate::i18n::ago((now - at).max(0) as u64);
+        let (groups, count) = {
+            let st = self.st.borrow();
+            let groups: Vec<NotifGroup> = notifications::group(&st.notifs)
+                .into_iter()
+                .map(|g| {
+                    let expanded = st.notif_expanded.contains(&g.app_id);
+                    let shown = if expanded { g.items.len() } else { g.items.len().min(COLLAPSED) };
+                    let icon = st.notif_icons.get(&g.app_id).cloned();
+                    NotifGroup {
+                        time: ago(g.newest()).into(),
+                        count: g.items.len() as i32,
+                        more: (g.items.len() - shown) as i32,
+                        expanded: expanded && g.items.len() > COLLAPSED,
+                        has_icon: icon.is_some(),
+                        icon: icon.unwrap_or_default(),
+                        items: ModelRc::new(VecModel::from(
+                            g.items
+                                .iter()
+                                .take(shown)
+                                .map(|n| NotifItem {
+                                    id: n.id as i32,
+                                    title: if n.title.is_empty() { g.app.clone() } else { n.title.clone() }.into(),
+                                    body: notification_body(&n.body).into(),
+                                    time: ago(n.at).into(),
+                                })
+                                .collect::<Vec<_>>(),
+                        )),
+                        app_id: g.app_id.into(),
+                        app: g.app.into(),
+                    }
+                })
+                .collect();
+            (groups, st.notifs.len() as i32)
+        };
+        self.sidebar.global::<ShellGlobal>().set_notif_groups(ModelRc::new(VecModel::from(groups)));
+        for s in self.screens.borrow().iter() {
+            s.bar.global::<ShellGlobal>().set_notif_count(count);
+        }
+        self.sidebar.global::<ShellGlobal>().set_notif_count(count);
+    }
+
+    /// Clicking a notification opens its app (like clicking the toast) and
+    /// removes it from the list.
+    fn open_notification(&self, id: i32) {
+        let app_id = self.st.borrow().notifs.iter().find(|n| n.id as i32 == id).map(|n| n.app_id.clone());
+        let Some(app_id) = app_id else { return };
+        self.close(Drawer::Sidebar);
+        if !app_id.is_empty() {
+            system::open(&format!("shell:AppsFolder\\{app_id}"));
+        }
+        self.dismiss_notifications(|n| n.id as i32 == id);
+    }
+
+    fn dismiss_notifications(&self, which: impl Fn(&notifications::Notif) -> bool) {
+        let ids: Vec<u32> = {
+            let mut st = self.st.borrow_mut();
+            let ids = st.notifs.iter().filter(|n| which(n)).map(|n| n.id).collect();
+            st.notifs.retain(|n| !which(n));
+            ids
+        };
+        if ids.is_empty() {
+            return;
+        }
+        if let Some(svc) = self.svc.borrow().as_ref() {
+            svc.notifications.send(NotifCommand::Remove(ids));
+        }
+        self.push_notifications();
     }
 
     // ------------------------------------------------------------------
@@ -933,6 +1051,7 @@ impl Caelestia {
             bar_show_network: cfg.bool("bar.status.showNetwork"),
             bar_show_bluetooth: cfg.bool("bar.status.showBluetooth"),
             bar_show_battery: cfg.bool("bar.status.showBattery"),
+            bar_show_notifications: cfg.bool("bar.status.showNotifications"),
             clock_12h: cfg.bool("services.useTwelveHourClock"),
             dashboard_enabled: cfg.bool("dashboard.enabled"),
             dashboard_show_on_hover: cfg.bool("dashboard.showOnHover"),
@@ -1318,6 +1437,7 @@ impl Caelestia {
             Drawer::Launcher => self.launcher.window(),
             Drawer::Utilities => self.utilities.window(),
             Drawer::Session => self.session.window(),
+            Drawer::Sidebar => self.sidebar.window(),
         }
     }
 
@@ -1327,6 +1447,7 @@ impl Caelestia {
             Drawer::Launcher => self.launcher.set_open(open),
             Drawer::Utilities => self.utilities.set_open(open),
             Drawer::Session => self.session.set_open(open),
+            Drawer::Sidebar => self.sidebar.set_open(open),
         }
     }
 
@@ -1346,6 +1467,8 @@ impl Caelestia {
             Drawer::Launcher => (inner_left + (inner_w - w) / 2, area.bottom - t - h),
             Drawer::Utilities => (area.right - t - w, area.bottom - t - h),
             Drawer::Session => (area.right - t - w, area.top + (area.height() - h) / 2),
+            // Anchored at the top: it grows downwards as notifications arrive.
+            Drawer::Sidebar => (area.right - t - w, area.top + t),
         };
         window.set_position(PhysicalPosition::new(x, y));
         Rect { left: x, top: y, right: x + w, bottom: y + h }
@@ -1420,6 +1543,7 @@ impl Caelestia {
             }
             Drawer::Session => self.session.set_focused(1),
             Drawer::Utilities => self.refresh_recordings(),
+            Drawer::Sidebar => self.push_notifications(),
         }
         self.set_drawer_flag(d, true);
         self.ensure_blur_tracking();
@@ -1665,13 +1789,14 @@ impl Caelestia {
         };
         let a = |left, top, right, bottom| Attached { left, top, right, bottom };
         let geo = |x: f32, y: f32, w: f32, h: f32| (x, y, w, h);
-        let surfaces: [(&slint::Window, (f32, f32, f32, f32), Attached, f32); 6] = [
+        let surfaces: [(&slint::Window, (f32, f32, f32, f32), Attached, f32); 7] = [
             (self.dashboard.window(), geo(self.dashboard.get_blur_x(), self.dashboard.get_blur_y(), self.dashboard.get_blur_w(), self.dashboard.get_blur_h()), a(false, true, false, false), border_r),
             (self.launcher.window(), geo(self.launcher.get_blur_x(), self.launcher.get_blur_y(), self.launcher.get_blur_w(), self.launcher.get_blur_h()), a(false, false, false, true), border_r),
             (self.utilities.window(), geo(self.utilities.get_blur_x(), self.utilities.get_blur_y(), self.utilities.get_blur_w(), self.utilities.get_blur_h()), a(false, false, true, true), border_r),
             (self.session.window(), geo(self.session.get_blur_x(), self.session.get_blur_y(), self.session.get_blur_w(), self.session.get_blur_h()), a(false, false, true, false), border_r),
             (self.popout.window(), geo(self.popout.get_blur_x(), self.popout.get_blur_y(), self.popout.get_blur_w(), self.popout.get_blur_h()), a(true, false, false, false), border_r),
             (self.settings.window(), geo(0.0, 0.0, 885.0, 625.0), a(false, false, false, false), settings_r),
+            (self.sidebar.window(), geo(self.sidebar.get_blur_x(), self.sidebar.get_blur_y(), self.sidebar.get_blur_w(), self.sidebar.get_blur_h()), a(false, true, true, false), border_r),
         ];
         let mut any = false;
         let mut panes = self.blur_panes.borrow_mut();
@@ -2233,6 +2358,25 @@ impl Caelestia {
                 }
                 self.apply_config();
                 self.load_plugins();
+            }
+            "notif-open" => self.open_notification(arg.parse().unwrap_or(0)),
+            "notif-dismiss" => self.dismiss_notifications(|n| n.id.to_string() == arg),
+            "notif-dismiss-group" => self.dismiss_notifications(|n| n.app_id == arg),
+            "notif-clear" => {
+                if let Some(svc) = self.svc.borrow().as_ref() {
+                    svc.notifications.send(NotifCommand::Clear);
+                }
+                self.st.borrow_mut().notifs.clear();
+                self.push_notifications();
+            }
+            "notif-expand" => {
+                {
+                    let mut st = self.st.borrow_mut();
+                    if !st.notif_expanded.remove(arg) {
+                        st.notif_expanded.insert(arg.to_owned());
+                    }
+                }
+                self.push_notifications();
             }
             "plugin-click" => self.plugin_click(arg.parse().unwrap_or(usize::MAX)),
             "plugin-toggle" => self.toggle_plugin(arg),
@@ -2843,6 +2987,9 @@ impl Caelestia {
         for g in [self.dashboard.global::<ShellGlobal>(), self.popout.global::<ShellGlobal>()] {
             g.set_calendar_title(cal_title.clone().into());
             g.set_calendar(cal.clone());
+        }
+        if !self.st.borrow().notifs.is_empty() {
+            self.push_notifications(); // "2 min ago" labels
         }
         let g = self.dashboard.global::<ShellGlobal>();
         let mut user = g.get_user();
@@ -3468,11 +3615,11 @@ impl Caelestia {
             "connected devices bluetooth pairing printers dispositivos emparejar impresoras auriculares",
             "audio volume sound microphone mute speakers volumen sonido microfono silenciar altavoces salida entrada",
             "updates system windows update winget actualizaciones sistema",
-            "plugins extensions extensiones complementos",
-            "panels dashboard taskbar bar launcher sidebar border workspaces clock paneles panel barra lanzador marco espacios reloj komorebi mosaico",
+            "plugins extensions widgets extensiones complementos",
+            "panels dashboard taskbar bar launcher sidebar border workspaces clock notifications clipboard performance battery paneles panel barra lanzador marco espacios reloj notificaciones portapapeles rendimiento bateria komorebi mosaico",
             "services poll intervals lyrics weather location servicios clima ubicacion ciudad",
             "language region locale weather location units fahrenheit clock 12-hour idioma region ubicacion unidades reloj espanol",
-            "about system information credits version dots export import config acerca sistema informacion version exportar importar configuracion",
+            "about system information credits version dots export import config github gallery acerca sistema informacion version exportar importar configuracion galeria",
         ];
         let q = q.trim().to_lowercase();
         let matches: Vec<bool> = if q.is_empty() { vec![] } else { KEYWORDS.iter().map(|k| q.split_whitespace().all(|w| k.contains(w))).collect() };
@@ -3723,6 +3870,22 @@ fn workspace_direction(from: i32, to: i32) -> i32 {
     if to < from { -1 } else { 1 }
 }
 
+/// Long bodies are cut to a few lines so one chatty toast can't fill the sidebar.
+fn notification_body(body: &str) -> String {
+    const MAX_LINES: usize = 4;
+    const MAX_CHARS: usize = 280;
+    let lines: Vec<&str> = body.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let mut out = lines.iter().take(MAX_LINES).copied().collect::<Vec<_>>().join("\n");
+    let cut = lines.len() > MAX_LINES || out.chars().count() > MAX_CHARS;
+    if out.chars().count() > MAX_CHARS {
+        out = out.chars().take(MAX_CHARS).collect::<String>().trim_end().to_owned();
+    }
+    if cut {
+        out.push('…');
+    }
+    out
+}
+
 fn is_integral_key(path: &str) -> bool {
     matches!(path, "border.thickness" | "border.rounding" | "bar.workspaces.shown" | "launcher.maxShown" | "bar.sizes.innerWidth") || path.starts_with("windows.komorebi.")
 }
@@ -3864,6 +4027,15 @@ fn cookie_path() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notification_bodies_are_capped() {
+        assert_eq!(notification_body("  hola \n\n que tal "), "hola\nque tal");
+        assert_eq!(notification_body("1\n2\n3\n4\n5"), "1\n2\n3\n4…");
+        let long = "x".repeat(400);
+        assert_eq!(notification_body(&long).chars().count(), 281);
+        assert_eq!(notification_body(""), "");
+    }
 
     #[test]
     fn workspace_direction_follows_the_switch() {

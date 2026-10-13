@@ -1,0 +1,192 @@
+// Top-right drawer (Caelestia modules/sidebar): the notification center.
+// Lists what Windows keeps in its Action Center, grouped by app, newest
+// first. Rust reads them (UserNotificationListener) and builds the groups;
+// the UI only renders them and emits actions.
+import { Theme } from "../theme.slint";
+import { Shell, NotifGroup } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, TextButton } from "../components/base.slint";
+import { DrawerFrame, Edge } from "../components/drawer.slint";
+
+component NotifCard inherits Rectangle {
+    in property <NotifGroup> g;
+    border-radius: Theme.rounding-normal;
+    background: Theme.layer(Theme.c.surface-container-high, 2);
+    height: col.preferred-height;
+
+    col := VerticalLayout {
+        padding: Theme.padding-normal;
+        spacing: 2px;
+        HorizontalLayout {
+            spacing: Theme.spacing-small;
+            padding-bottom: 2px;
+            Rectangle {
+                width: 22px;
+                height: 22px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 6px;
+                clip: true;
+                background: root.g.has-icon ? transparent : Theme.c.secondary-container;
+                if root.g.has-icon: Image { width: 100%; height: 100%; source: root.g.icon; image-rendering: smooth; }
+                if !root.g.has-icon: MaterialIcon { text: "apps"; font-size: Theme.font-normal; color: Theme.c.on-secondary-container; }
+            }
+            StyledText { horizontal-stretch: 1; text: root.g.app; font-size: Theme.font-small; color: Theme.c.on-surface-variant; overflow: elide; }
+            if root.g.count > 1: StyledText { text: root.g.count; font-size: Theme.font-small; color: Theme.c.primary; }
+            StyledText { text: root.g.time; font-size: Theme.font-small; color: Theme.c.outline; }
+            IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: "close";
+                size: 22px;
+                icon-size: Theme.font-normal;
+                clicked => { Shell.action("notif-dismiss-group", root.g.app-id); }
+            }
+        }
+        for n in root.g.items: Rectangle {
+            height: item.preferred-height;
+            border-radius: Theme.rounding-small;
+            StateLayer {
+                border-radius: parent.border-radius;
+                clicked => { Shell.action("notif-open", n.id); }
+            }
+            item := HorizontalLayout {
+                padding: 4px;
+                padding-left: 6px;
+                spacing: Theme.spacing-small;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    StyledText { text: n.title; font-size: Theme.font-normal; font-weight: 600; overflow: elide; }
+                    if n.body != "": StyledText { text: n.body; font-size: Theme.font-small; color: Theme.c.on-surface-variant; wrap: word-wrap; }
+                }
+                if root.g.count > 1: IconButton {
+                    y: 2px;
+                    icon: "close";
+                    size: 22px;
+                    icon-size: Theme.font-small;
+                    clicked => { Shell.action("notif-dismiss", n.id); }
+                }
+            }
+        }
+        if root.g.more > 0 || root.g.expanded: HorizontalLayout {
+            alignment: start;
+            padding-top: 2px;
+            TextButton {
+                height: 28px;
+                kind: ButtonKind.text;
+                icon: root.g.expanded ? "expand_less" : "expand_more";
+                text: root.g.expanded ? @tr("Show less") : @tr("{} more", root.g.more);
+                font-size: Theme.font-small;
+                clicked => { Shell.action("notif-expand", root.g.app-id); }
+            }
+        }
+    }
+}
+
+export component SidebarWindow inherits Window {
+    title: "caelestia-sidebar";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in-out property <bool> open;
+    out property <length> blur-x: frame.panel-x;
+    out property <length> blur-y: frame.panel-y;
+    out property <length> blur-w: frame.panel-w;
+    out property <length> blur-h: frame.panel-h;
+
+    property <length> panel-w: 360px;
+    property <length> list-max: 560px;
+    property <length> panel-h: max(150px, col.preferred-height);
+    property <bool> allowed: Shell.notif-access == "allowed";
+    property <int> count: Shell.notif-count;
+
+    width: root.panel-w + Theme.t.border-rounding;
+    height: root.panel-h + Theme.t.border-rounding;
+
+    frame := DrawerFrame {
+        edge: Edge.top-right;
+        open: root.open;
+        panel-width: root.panel-w;
+        panel-height: root.panel-h;
+
+        col := VerticalLayout {
+            padding: Theme.padding-large;
+            spacing: Theme.spacing-normal;
+
+            HorizontalLayout {
+                spacing: Theme.spacing-small;
+                MaterialIcon { text: Shell.dnd ? "notifications_off" : "notifications"; color: Theme.c.primary; font-size: Theme.font-large; }
+                StyledText { text: @tr("Notifications"); font-size: Theme.font-larger; font-weight: 500; }
+                if root.count > 0: Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    height: 20px;
+                    width: max(20px, badge.preferred-width + 12px);
+                    border-radius: 10px;
+                    background: Theme.c.primary;
+                    badge := StyledText { text: root.count; font-size: Theme.font-small; color: Theme.c.on-primary; horizontal-alignment: center; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                IconButton {
+                    y: (parent.height - self.height) / 2;
+                    icon: Shell.dnd ? "do_not_disturb_on" : "do_not_disturb_off";
+                    kind: ButtonKind.tonal;
+                    checkable: true;
+                    toggled: Shell.dnd;
+                    size: 32px;
+                    icon-size: Theme.font-larger;
+                    clicked => { Shell.action("toggle-dnd", ""); }
+                }
+                IconButton {
+                    y: (parent.height - self.height) / 2;
+                    icon: "clear_all";
+                    kind: ButtonKind.tonal;
+                    size: 32px;
+                    icon-size: Theme.font-larger;
+                    disabled: root.count == 0;
+                    clicked => { Shell.action("notif-clear", ""); }
+                }
+            }
+
+            if !root.allowed: Rectangle {
+                border-radius: Theme.rounding-normal;
+                background: Theme.layer(Theme.c.surface-container-high, 2);
+                height: access.preferred-height;
+                access := VerticalLayout {
+                    padding: Theme.padding-larger;
+                    spacing: Theme.spacing-small;
+                    StyledText {
+                        text: Shell.notif-access == "unsupported" ? @tr("This version of Windows doesn't share notifications with other apps") : @tr("Caelestia needs notification access to show them here");
+                        wrap: word-wrap;
+                        font-size: Theme.font-small;
+                        color: Theme.c.on-surface-variant;
+                    }
+                    if Shell.notif-access != "unsupported": HorizontalLayout {
+                        alignment: start;
+                        TextButton {
+                            height: 32px;
+                            icon: "open_in_new";
+                            text: @tr("Allow in Windows settings");
+                            font-size: Theme.font-small;
+                            clicked => { Shell.action("open-uri", "ms-settings:privacy-notifications"); }
+                        }
+                    }
+                }
+            }
+
+            if root.allowed && root.count == 0: VerticalLayout {
+                padding: Theme.padding-large;
+                spacing: Theme.spacing-small;
+                MaterialIcon { text: "notifications_paused"; font-size: 42px; color: Theme.c.outline; }
+                StyledText { text: @tr("No notifications"); color: Theme.c.outline; horizontal-alignment: center; }
+            }
+
+            if root.allowed && root.count > 0: Flickable {
+                height: min(list.preferred-height, root.list-max);
+                content-height: list.preferred-height;
+                list := VerticalLayout {
+                    spacing: Theme.spacing-small;
+                    for group in Shell.notif-groups: NotifCard { g: group; }
+                }
+            }
+        }
+    }
+}

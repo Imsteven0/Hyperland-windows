@@ -250,6 +250,29 @@ component StatusIcons inherits Rectangle {
     col := VerticalLayout {
         padding: Theme.padding-small;
         spacing: 2px;
+        // Notification center: bell with the number of notifications.
+        if Shell.cfg.bar-show-notifications: StatusIcon {
+            icon: Shell.dnd ? "notifications_off" : Shell.notif-count > 0 ? "notifications_unread" : "notifications";
+            tint: Shell.notif-count > 0 && !Shell.dnd ? Theme.c.primary : Theme.c.secondary;
+            clicked => { Shell.action("toggle", "sidebar"); }
+            if Shell.notif-count > 0 && !Shell.dnd: Rectangle {
+                x: parent.width / 2 + 2px;
+                y: 2px;
+                width: max(14px, count.preferred-width + 6px);
+                height: 14px;
+                border-radius: 7px;
+                background: Theme.c.error;
+                count := Text {
+                    text: Shell.notif-count > 99 ? "99+" : Shell.notif-count;
+                    color: Theme.c.on-error;
+                    font-family: Theme.t.font-sans;
+                    font-size: 9px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
         if Shell.cfg.bar-show-audio: StatusIcon {
             icon: Shell.status.muted ? "volume_off"
                 : Shell.status.volume > 0.66 ? "volume_up"

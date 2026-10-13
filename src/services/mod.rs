@@ -9,6 +9,7 @@ pub mod emoji;
 pub mod icons;
 pub mod komorebi;
 pub mod media;
+pub mod notifications;
 pub mod perf;
 pub mod plugins;
 pub mod sysmon;
