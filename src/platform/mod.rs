@@ -3,6 +3,7 @@ pub mod audio;
 pub mod autostart;
 pub mod blur;
 pub mod bluetooth;
+pub mod clipboard;
 pub mod desktops;
 pub mod focus;
 pub mod ghosts;

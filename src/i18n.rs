@@ -143,8 +143,56 @@ pub fn uptime(secs: u64) -> String {
     }
 }
 
+/// "now", "5 min ago", "2 h ago", "3 d ago" in the UI language.
+pub fn ago(secs: u64) -> String {
+    ago_in(secs, is_es())
+}
+
+fn ago_in(secs: u64, es: bool) -> String {
+    let (m, h, d) = (secs / 60, secs / 3600, secs / 86400);
+    match (es, secs) {
+        (true, 0..60) => "ahora".into(),
+        (false, 0..60) => "now".into(),
+        (true, 60..3600) => format!("hace {m} min"),
+        (false, 60..3600) => format!("{m} min ago"),
+        (true, 3600..86400) => format!("hace {h} h"),
+        (false, 3600..86400) => format!("{h} h ago"),
+        (true, _) => format!("hace {d} d"),
+        (false, _) => format!("{d} d ago"),
+    }
+}
+
 /// Capitalises the first letter (Spanish day/month names are lowercase).
 pub fn capitalize(s: &str) -> String {
     let mut c = s.chars();
     c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_times() {
+        assert_eq!(ago_in(5, false), "now");
+        assert_eq!(ago_in(5, true), "ahora");
+        assert_eq!(ago_in(125, false), "2 min ago");
+        assert_eq!(ago_in(125, true), "hace 2 min");
+        assert_eq!(ago_in(7200, true), "hace 2 h");
+        assert_eq!(ago_in(3 * 86400 + 5, false), "3 d ago");
+    }
+
+    #[test]
+    fn resolves_language_setting() {
+        assert_eq!(resolve("auto", "es"), "es");
+        assert_eq!(resolve("", "en"), "en");
+        assert_eq!(resolve(" ES ", "en"), "es");
+    }
+
+    #[test]
+    fn capitalizes_unicode() {
+        assert_eq!(capitalize("miércoles"), "Miércoles");
+        assert_eq!(capitalize("ñandú"), "Ñandú");
+        assert_eq!(capitalize(""), "");
+    }
 }

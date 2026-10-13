@@ -3,6 +3,7 @@
 //!
 //!   caelestia toggle launcher|dashboard|utilities|session|settings
 //!   caelestia dashboard 0|1|2|3   (overview, media, performance, weather)
+//!   caelestia launcher calc|emoji|clipboard
 //!   caelestia reload
 //!   caelestia quit
 //!
@@ -18,7 +19,7 @@ use windows::{
     core::HSTRING,
 };
 
-pub const COMMANDS: [&str; 28] = [
+pub const COMMANDS: [&str; 31] = [
     "quit",
     "reload",
     "toggle:launcher",
@@ -52,6 +53,10 @@ pub const COMMANDS: [&str; 28] = [
     "picker:scheme",
     "picker:variant",
     "picker:opacity",
+    // `caelestia launcher calc|emoji|clipboard`: launcher in that mode
+    "launcher:calc",
+    "launcher:emoji",
+    "launcher:clipboard",
 ];
 
 /// Optional instance suffix (`CAELESTIA_INSTANCE`) so a dev build can run

@@ -37,6 +37,8 @@ export component LauncherWindow inherits Window {
     // Browsing applies each wallpaper live; Enter keeps it, Esc restores.
     callback preview-wallpaper(int);
     callback dismiss();
+    // Shift+Delete on a row (removes a clipboard history entry).
+    callback remove-entry(int);
     // Pickers hide the search field, so the key scope itself takes focus.
     public function focus-search() {
         if root.picker-mode != "" { keys.focus(); } else { search.focus-input(); }
@@ -97,6 +99,10 @@ export component LauncherWindow inherits Window {
                     if root.results.length > 0 { root.activate(root.selected); }
                     return accept;
                 }
+                if e.text == Key.Delete && e.modifiers.shift {
+                    if root.results.length > 0 { root.remove-entry(root.selected); }
+                    return accept;
+                }
                 reject
             }
 
@@ -139,7 +145,16 @@ export component LauncherWindow inherits Window {
                                     source: app.icon;
                                     image-rendering: smooth;
                                 }
-                                if !app.has-icon: Rectangle {
+                                if app.emoji != "": Text {
+                                    width: 32px;
+                                    height: 32px;
+                                    text: app.emoji;
+                                    font-family: "Segoe UI Emoji";
+                                    font-size: 24px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                if !app.has-icon && app.emoji == "": Rectangle {
                                     width: 32px;
                                     height: 32px;
                                     border-radius: Theme.rounding-small;

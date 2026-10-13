@@ -34,6 +34,7 @@ material-colors = { version = "0.5", features = ["quantize"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp"] }
 chrono = { version = "0.4", features = ["unstable-locales"] }
 nucleo-matcher = "0.3"
+emojis = "0.9"
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 crossbeam-channel = "0.5"
 raw-window-handle = "0.6"
@@ -50,6 +51,9 @@ windows = { version = "0.62", features = [
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
     "Win32_System_Com",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
     "Win32_System_Com_StructuredStorage",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_LibraryLoader",

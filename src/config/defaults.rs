@@ -66,6 +66,12 @@ pub fn default_config() -> Value {
         },
         "launcher": {
             "actionPrefix": ">",
+            "calcPrefix": "=",
+            "emojiPrefix": ":",
+            "clipboardPrefix": ";",
+            "clipboardHistory": true,
+            "clipboardMaxItems": 50,
+            "clipboardPaste": false,
             "maxShown": 7,
             "maxWallpapers": 9,
             "enableDangerousActions": false,

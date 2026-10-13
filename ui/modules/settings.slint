@@ -610,6 +610,8 @@ component PanelsPage inherits VerticalLayout {
     SwitchRow { first: true; title: @tr("Dashboard"); key: "dashboard.enabled"; value: Shell.cfg.dashboard-enabled; }
     SwitchRow { title: @tr("Open dashboard on hover"); subtitle: @tr("Hover the top edge of the screen"); key: "dashboard.showOnHover"; value: Shell.cfg.dashboard-show-on-hover; }
     SliderRow { title: @tr("Launcher results"); key: "launcher.maxShown"; value: Shell.cfg.launcher-max-shown; minimum: 3; maximum: 12; step: 1; decimals: 0; }
+    SwitchRow { title: @tr("Clipboard history"); subtitle: @tr("Type \";\" in the launcher · kept in memory only, password managers are skipped"); key: "launcher.clipboardHistory"; value: Shell.cfg.clipboard-history; }
+    SwitchRow { title: @tr("Paste after choosing"); subtitle: @tr("Clipboard, emoji and calculator results are pasted into the previous window"); key: "launcher.clipboardPaste"; value: Shell.cfg.clipboard-paste; }
     SettingRow {
         last: true;
         title: @tr("Open launcher with the Windows key");

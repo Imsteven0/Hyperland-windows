@@ -40,7 +40,8 @@ export struct Status {
 
 export struct CalendarDay { day: int, current-month: bool, today: bool }
 
-export struct AppEntry { id: int, name: string, description: string, icon: image, has-icon: bool, is-action: bool, glyph: string }
+// `emoji` set = an emoji row (rendered as text); `glyph` = a Material icon.
+export struct AppEntry { id: int, name: string, description: string, icon: image, has-icon: bool, is-action: bool, glyph: string, emoji: string }
 
 export struct UserInfo { name: string, initial: string, host: string, uptime: string, os: string, avatar: image, has-avatar: bool }
 
@@ -79,6 +80,8 @@ export struct UiConfig {
     dashboard-show-on-hover: bool,
     launcher-max-shown: int,
     launcher-action-prefix: string,
+    clipboard-history: bool,
+    clipboard-paste: bool,
     use-fahrenheit: bool,
     weather-location: string,
     weather-location-name: string,
@@ -154,7 +157,7 @@ export global Shell {
         bar-show-active-window: true, bar-show-clock: true, bar-show-status: true, bar-show-power: true,
         bar-show-audio: true, bar-show-network: true, bar-show-bluetooth: true, bar-show-battery: true,
         clock-12h: true, dashboard-enabled: true, dashboard-show-on-hover: true,
-        launcher-max-shown: 7, launcher-action-prefix: ">", use-fahrenheit: false,
+        launcher-max-shown: 7, launcher-action-prefix: ">", clipboard-history: true, use-fahrenheit: false,
         wallpaper-enabled: true, scheme-variant: "tonalspot", scheme-mode: "dark", scheme-name: "dynamic", smart-scheme: true, anim-scale: 1, blur: true, super-launcher: false, wallpaper-repo: "", autostart: true, language: "en",
         border-thickness: 10, border-rounding: 25, rounding-scale: 1, font-scale: 1,
         transparency: false, base-alpha: 0.85, layer-alpha: 0.4,
