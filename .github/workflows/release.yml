@@ -29,11 +29,11 @@ jobs:
       # published unsigned and the release notes explain SmartScreen.
       HAS_SIGNING: ${{ secrets.SIGN_CERT_PFX != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Check the tag matches Cargo.toml
         shell: pwsh
@@ -120,7 +120,7 @@ jobs:
           if ($env:HAS_SIGNING -eq 'true') { $notes = $notes -replace '(?s)<!-- unsigned -->.*?<!-- /unsigned -->', '' }
           Set-Content dist\notes.md $notes
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: Caelestia for Windows ${{ env.TAG }}
           tag_name: ${{ env.TAG }}
