@@ -47,6 +47,18 @@ que los dots se pueden compartir entre Linux y Windows.
 
 Requiere Windows 10 de 64 bits (versión 2004 o posterior) o Windows 11.
 
+> **El mosaico necesita komorebi.** Caelestia es la barra, el marco y los paneles;
+> el gestor de ventanas en mosaico es [komorebi](https://github.com/LGUG2Z/komorebi)
+> (desarrollado y probado con la 0.1.41) y se instala aparte:
+>
+> ```powershell
+> winget install LGUG2Z.komorebi
+> ```
+>
+> Después activa **Usar komorebi para el mosaico** en Ajustes › Paneles › Mosaico.
+> Caelestia lo arranca y le aplica tus colores (ver [Mosaico con komorebi](#mosaico-con-komorebi)).
+> Sin komorebi el shell funciona igual, usando los escritorios virtuales de Windows como espacios.
+
 **Instalador (recomendado)**: descarga `caelestia-win-<versión>-setup.exe` desde
 [Releases](https://github.com/Imsteven0/Hyperland-windows/releases) y ejecútalo.
 No necesita permisos de administrador: se instala para tu usuario en
