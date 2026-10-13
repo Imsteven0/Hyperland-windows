@@ -21,12 +21,12 @@ DefaultDirName={localappdata}\Programs\Caelestia
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 PrivilegesRequired=lowest
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 MinVersion=10.0.19041
 OutputDir=..\dist
 OutputBaseFilename=caelestia-win-{#AppVersion}-setup
-Compression=lzma2/ultra64
+Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 LicenseFile=..\LICENSE
@@ -91,6 +91,7 @@ begin
   if not RegQueryStringValue(HKCU, 'Environment', 'Path', Path) then
     exit;
   P := Pos(';' + Uppercase(Dir), Uppercase(Path));
+  Log('PATH cleanup: looking for ' + Dir + ' in ' + Path + ' -> ' + IntToStr(P));
   if P > 0 then
   begin
     Delete(Path, P, Length(Dir) + 1);
@@ -115,10 +116,12 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
-  if CurUninstallStep = usPostUninstall then
+  { Before the files go (the shell was already asked to quit by [UninstallRun]). }
+  if CurUninstallStep = usUninstall then
   begin
     { The shell registers itself to start with Windows (windows.autostart). }
-    RegDeleteValue(HKCU, RunKey, 'Caelestia');
+    if RegDeleteValue(HKCU, RunKey, 'Caelestia') then
+      Log('Removed the autostart entry');
     RemoveFromPath(ExpandConstant('{app}'));
   end;
 end;
