@@ -139,7 +139,7 @@ impl Caelestia {
         match d {
             Drawer::Dashboard => {
                 if let Some(svc) = self.svc.borrow().as_ref() {
-                    svc.sysmon.active.store(true, Ordering::Relaxed);
+                    svc.sysmon.set_active(true);
                 }
             }
             Drawer::Launcher => {
@@ -207,7 +207,7 @@ impl Caelestia {
         }
         if d == Drawer::Dashboard {
             if let Some(svc) = self.svc.borrow().as_ref() {
-                svc.sysmon.active.store(false, Ordering::Relaxed);
+                svc.sysmon.set_active(false);
             }
         }
         // Hide once the close animation has finished, unless reopened meanwhile.
@@ -232,6 +232,14 @@ impl Caelestia {
     /// Hover-to-open for the dashboard (top edge) and utilities (bottom-right
     /// corner) on whichever screen the pointer is, plus popout dismissal.
     pub(super) fn poll_hover(&self) {
+        // In a full-screen game nothing can open from the edges: with no
+        // popout or hover-opened drawer to dismiss, there is nothing to track.
+        if self.perf_reason() == Some(PerfReason::Fullscreen) {
+            let st = self.st.borrow();
+            if !st.popout.open && !st.drawers.iter().any(|d| d.open && d.by_hover) {
+                return;
+            }
+        }
         let (x, y) = win::cursor_pos();
         self.poll_popout(x, y);
         let idx = self.active_screen();

@@ -53,6 +53,8 @@ pub struct SysMonitor {
     pub interval_ms: Arc<AtomicU64>,
     /// Bumped by the UI's disk picker; `u64::MAX` = system drive.
     pub disk_index: Arc<AtomicU64>,
+    /// Wakes the sampler at once (dashboard opened, other disk picked).
+    wake: crossbeam_channel::Sender<()>,
 }
 
 impl SysMonitor {
@@ -61,15 +63,27 @@ impl SysMonitor {
         let interval_ms = Arc::new(AtomicU64::new(1000));
         let disk_index = Arc::new(AtomicU64::new(u64::MAX));
         let (a, iv, di) = (active.clone(), interval_ms.clone(), disk_index.clone());
+        let (wake, woken) = crossbeam_channel::unbounded();
         thread::Builder::new()
             .name("sysmon".into())
-            .spawn(move || run(a, iv, di, on_update))
+            .spawn(move || run(a, iv, di, woken, on_update))
             .expect("spawn sysmon");
-        Self { active, interval_ms, disk_index }
+        Self { active, interval_ms, disk_index, wake }
+    }
+
+    /// Shows or hides the live stats; showing samples right away.
+    pub fn set_active(&self, on: bool) {
+        self.active.store(on, Ordering::Relaxed);
+        let _ = self.wake.send(());
+    }
+
+    pub fn set_disk(&self, index: u64) {
+        self.disk_index.store(index, Ordering::Relaxed);
+        let _ = self.wake.send(());
     }
 }
 
-fn run(active: Arc<AtomicBool>, interval_ms: Arc<AtomicU64>, disk_index: Arc<AtomicU64>, on_update: impl Fn(SysSnapshot)) {
+fn run(active: Arc<AtomicBool>, interval_ms: Arc<AtomicU64>, disk_index: Arc<AtomicU64>, woken: crossbeam_channel::Receiver<()>, on_update: impl Fn(SysSnapshot)) {
     let mut sys = System::new_with_specifics(RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()).with_memory(MemoryRefreshKind::nothing().with_ram()));
     let mut disks = Disks::new_with_refreshed_list();
     let mut nets = Networks::new_with_refreshed_list();
@@ -90,13 +104,25 @@ fn run(active: Arc<AtomicBool>, interval_ms: Arc<AtomicU64>, disk_index: Arc<Ato
         let disk_before = disk_index.load(Ordering::Relaxed);
         let interval = Duration::from_millis(interval_ms.load(Ordering::Relaxed).max(250));
         let deadline = last_sample + if was_visible { interval } else { interval * 4 };
-        // Sleep in small steps so opening the dashboard or picking another
-        // disk refreshes immediately instead of after a full hidden interval.
-        while std::time::Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(50));
-            let woke = (!was_visible && active.load(Ordering::Relaxed)) || disk_index.load(Ordering::Relaxed) != disk_before;
-            if woke && last_sample.elapsed() >= Duration::from_millis(200) {
-                break;
+        // Sleep until the next sample, or until opening the dashboard or
+        // picking another disk asks for one now (no periodic wake-ups).
+        loop {
+            match woken.recv_deadline(deadline) {
+                Ok(()) => {
+                    let woke = (!was_visible && active.load(Ordering::Relaxed)) || disk_index.load(Ordering::Relaxed) != disk_before;
+                    if woke {
+                        // CPU usage is a delta between two refreshes: take the
+                        // first one now so the shown value covers the next 200 ms,
+                        // not the whole time the dashboard was closed.
+                        if !was_visible {
+                            sys.refresh_cpu_usage();
+                        }
+                        thread::sleep(Duration::from_millis(200).saturating_sub(if was_visible { last_sample.elapsed() } else { Duration::ZERO }));
+                        break;
+                    }
+                }
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => break,
+                Err(crossbeam_channel::RecvTimeoutError::Disconnected) => return,
             }
         }
         let visible = active.load(Ordering::Relaxed);
@@ -104,8 +130,11 @@ fn run(active: Arc<AtomicBool>, interval_ms: Arc<AtomicU64>, disk_index: Arc<Ato
         last_sample = std::time::Instant::now();
         tick += 1;
 
-        sys.refresh_cpu_usage();
-        sys.refresh_memory();
+        // While hidden only the network history is kept up to date.
+        if visible {
+            sys.refresh_cpu_usage();
+            sys.refresh_memory();
+        }
         nets.refresh(true);
         if tick % 10 == 1 {
             disks.refresh(true);

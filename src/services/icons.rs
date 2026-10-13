@@ -79,6 +79,9 @@ fn extract(key: &str, px: i32) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
 pub struct IconCache {
     images: RefCell<HashMap<String, Option<Image>>>,
     pending: RefCell<HashSet<String>>,
+    /// (hwnd, pid) -> icon key: resolving one opens the process, and the bar
+    /// rebuilds its workspaces on every focus change.
+    keys: RefCell<HashMap<(isize, u32), Option<String>>>,
     tx: Sender<String>,
 }
 
@@ -96,7 +99,27 @@ impl IconCache {
                 }
             })
             .expect("spawn icon worker");
-        Self { images: RefCell::new(HashMap::new()), pending: RefCell::new(HashSet::new()), tx }
+        Self { images: RefCell::new(HashMap::new()), pending: RefCell::new(HashSet::new()), keys: RefCell::new(HashMap::new()), tx }
+    }
+
+    /// `window_key`, cached per window. The pid is part of the cache key, so
+    /// a reused HWND belonging to another process is resolved again.
+    pub fn key_for(&self, hwnd: isize) -> Option<String> {
+        let mut pid = 0u32;
+        unsafe { GetWindowThreadProcessId(HWND(hwnd as *mut _), Some(&mut pid)) };
+        if pid == 0 {
+            return None;
+        }
+        if let Some(k) = self.keys.borrow().get(&(hwnd, pid)) {
+            return k.clone();
+        }
+        let key = window_key(hwnd);
+        let mut keys = self.keys.borrow_mut();
+        if keys.len() > 1024 {
+            keys.clear(); // closed windows never leave: start over now and then
+        }
+        keys.insert((hwnd, pid), key.clone());
+        key
     }
 
     /// Cached icon, or `None` while it's being extracted (requested once).

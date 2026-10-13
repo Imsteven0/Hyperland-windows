@@ -82,7 +82,7 @@ impl Caelestia {
                 let mut seen = std::collections::HashSet::new();
                 let imgs: Vec<Image> = windows
                     .iter()
-                    .filter_map(|&h| icons::window_key(h))
+                    .filter_map(|&h| self.icons.key_for(h))
                     .filter(|k| seen.insert(k.clone())) // one icon per app
                     .filter_map(|k| self.icons.get(&k))
                     .take(MAX_ICONS)

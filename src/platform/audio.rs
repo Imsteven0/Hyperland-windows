@@ -2,7 +2,7 @@
 //! device switching, and Bluetooth audio (re)connection through the BT audio
 //! driver's KS one-shot properties.
 
-use std::ffi::c_void;
+use std::{cell::RefCell, collections::HashSet, ffi::c_void};
 
 use windows::{
     Win32::{
@@ -19,8 +19,21 @@ use windows::{
     core::{GUID, HRESULT, IUnknown, Interface, PCWSTR, Result},
 };
 
+thread_local! {
+    /// One enumerator per thread (COM objects belong to their apartment):
+    /// the status refresh asks for levels every second.
+    static ENUMERATOR: RefCell<Option<IMMDeviceEnumerator>> = const { RefCell::new(None) };
+}
+
 fn enumerator() -> Result<IMMDeviceEnumerator> {
-    unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }
+    ENUMERATOR.with(|cell| {
+        if let Some(e) = cell.borrow().as_ref() {
+            return Ok(e.clone());
+        }
+        let e: IMMDeviceEnumerator = unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }?;
+        *cell.borrow_mut() = Some(e.clone());
+        Ok(e)
+    })
 }
 
 fn endpoint(flow: EDataFlow) -> Result<IAudioEndpointVolume> {
@@ -231,10 +244,12 @@ pub fn audio_endpoint_active(container: GUID) -> bool {
     }
 }
 
-pub fn has_audio_endpoint(container: GUID) -> bool {
-    let Ok(e) = enumerator() else { return false };
+/// Device containers that own an audio endpoint (active or not), in one
+/// pass over the endpoints instead of one pass per device.
+pub fn audio_containers() -> HashSet<GUID> {
+    let Ok(e) = enumerator() else { return HashSet::new() };
     unsafe {
-        let Ok(coll) = e.EnumAudioEndpoints(eAll, DEVICE_STATE(DEVICE_STATEMASK_ALL)) else { return false };
-        (0..coll.GetCount().unwrap_or(0)).filter_map(|i| coll.Item(i).ok()).any(|d| endpoint_container(&d) == Some(container))
+        let Ok(coll) = e.EnumAudioEndpoints(eAll, DEVICE_STATE(DEVICE_STATEMASK_ALL)) else { return HashSet::new() };
+        (0..coll.GetCount().unwrap_or(0)).filter_map(|i| coll.Item(i).ok()).filter_map(|d| endpoint_container(&d)).collect()
     }
 }

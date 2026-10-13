@@ -82,6 +82,7 @@ impl Caelestia {
         let (title, app) = self.st.borrow().active_title.clone();
         self.set_active_title(&title, &app);
         self.push_plugins();
+        self.push_notifications(); // the new bars start with no bell count
 
         for s in self.screens.borrow().iter() {
             let _ = s.border.show();

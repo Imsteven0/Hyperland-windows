@@ -81,7 +81,16 @@ impl Caelestia {
             }
         }
         drop(screens);
-        self.push_audio_devices();
+        // Enumerating endpoints is the costly part: only while a list is on screen.
+        if self.audio_lists_visible() {
+            self.push_audio_devices(false);
+        }
+    }
+
+    /// The endpoint lists only appear in the audio popout and in Settings.
+    pub(super) fn audio_lists_visible(&self) -> bool {
+        let st = self.st.borrow();
+        (st.popout.open && st.popout.kind == "audio") || st.settings_visible
     }
 
     pub(super) fn refresh_recordings(&self) {
@@ -314,8 +323,13 @@ impl Caelestia {
         }
     }
 
-    /// Audio endpoint lists -> UI (only when they change).
-    pub(super) fn push_audio_devices(&self) {
+    /// Audio endpoint lists -> UI (only when they change), at most once a
+    /// second unless `force`.
+    pub(super) fn push_audio_devices(&self, force: bool) {
+        if !force && self.st.borrow().audio_lists_at.is_some_and(|t| t.elapsed() < Duration::from_millis(900)) {
+            return;
+        }
+        self.st.borrow_mut().audio_lists_at = Some(Instant::now());
         let lists = (audio::devices(false), audio::devices(true));
         if self.st.borrow().audio_lists == lists {
             return;

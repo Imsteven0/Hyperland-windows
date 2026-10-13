@@ -69,6 +69,9 @@ where
 /// Paired devices, classic and LE merged by container (one row per gadget).
 pub fn paired_devices() -> Vec<BtDevice> {
     let mut out: Vec<BtDevice> = Vec::new();
+    // Looked up once, lazily: enumerating audio endpoints per device was the
+    // costliest part of the 3-second connectivity poll.
+    let mut audio_containers: Option<std::collections::HashSet<GUID>> = None;
     let selectors = [BluetoothDevice::GetDeviceSelectorFromPairingState(true), BluetoothLEDevice::GetDeviceSelectorFromPairingState(true)];
     for selector in selectors.into_iter().flatten() {
         let props: IIterable<HSTRING> = vec![HSTRING::from(P_CONNECTED), HSTRING::from(P_MAJOR), HSTRING::from(P_CONTAINER)].into();
@@ -88,7 +91,7 @@ pub fn paired_devices() -> Vec<BtDevice> {
                 existing.connected |= connected;
                 continue;
             }
-            let audio = container.is_some_and(super::audio::has_audio_endpoint);
+            let audio = container.is_some_and(|c| audio_containers.get_or_insert_with(super::audio::audio_containers).contains(&c));
             // No class of device reported: an audio endpoint still tells us what it is.
             let major = if major == 0 && audio { 4 } else { major };
             out.push(BtDevice {

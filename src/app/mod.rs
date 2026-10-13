@@ -34,7 +34,7 @@ use crate::{
         emoji,
         connectivity::{Connectivity, NetSnapshot, RadioCmd},
         dots_repo,
-        icons::{self, IconCache},
+        icons::IconCache,
         komorebi::{self, KState, KStatus},
         media::{Media, MediaCommand, MediaSnapshot, fmt_time},
         notifications::{self, AccessState, NotifCommand, NotifEvent, Notifications},
@@ -207,6 +207,9 @@ struct State {
     place_gen: u32,
     /// Last audio endpoint lists pushed to the UI (avoid churn every second).
     audio_lists: (Vec<audio::AudioDevice>, Vec<audio::AudioDevice>),
+    /// When the lists were last read (dragging the volume refreshes the
+    /// status many times a second; the lists don't need to follow).
+    audio_lists_at: Option<Instant>,
     fuzzy: Fuzzy,
     /// Clipboard history (memory only), filled by `clip_watcher`.
     clips: ClipHistory,
@@ -272,6 +275,8 @@ pub struct Caelestia {
     hotkeys: RefCell<Option<Hotkeys>>,
     timers: RefCell<Vec<Timer>>,
     thumb_timer: Timer,
+    /// Coalesces workspace rebuilds when app icons finish loading.
+    icon_refresh: Timer,
     startup_timer: Timer,
     settings_thumb_timer: Timer,
     /// One blur pane per translucent surface (dashboard, launcher, utilities,
@@ -359,6 +364,7 @@ impl Caelestia {
                 places: Vec::new(),
                 place_gen: 0,
                 audio_lists: Default::default(),
+                audio_lists_at: None,
                 fuzzy: Fuzzy::default(),
                 clips: ClipHistory::new(50),
                 perf: perf::Tracker::new(2),
@@ -379,6 +385,7 @@ impl Caelestia {
             hotkeys: RefCell::new(None),
             timers: RefCell::new(Vec::new()),
             thumb_timer: Timer::default(),
+            icon_refresh: Timer::default(),
             startup_timer: Timer::default(),
             settings_thumb_timer: Timer::default(),
             blur_panes: RefCell::new((0..7).map(|_| None).collect()),
@@ -387,7 +394,15 @@ impl Caelestia {
             icons: IconCache::new(40, |key, buf| {
                 post(move |app| {
                     app.icons.store(key, buf);
-                    app.refresh_workspace_icons();
+                    // Icons arrive in bursts (one per app at startup): rebuild once.
+                    if !app.icon_refresh.running() {
+                        let weak = app.weak.clone();
+                        app.icon_refresh.start(TimerMode::SingleShot, Duration::from_millis(60), move || {
+                            if let Some(app) = weak.upgrade() {
+                                app.refresh_workspace_icons();
+                            }
+                        });
+                    }
                 })
             }),
             watcher: RefCell::new(None),

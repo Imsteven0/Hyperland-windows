@@ -63,6 +63,7 @@ impl Caelestia {
             self.apply_settings_backdrop();
             self.update_wallpaper_preview();
             self.refresh_settings_wallpapers();
+            self.push_audio_devices(true);
             if self.settings.global::<ShellGlobal>().get_dots_state() != "fetching" && self.st.borrow().dots_preview.is_none() {
                 self.set_dots_status("idle", "");
             }

@@ -105,7 +105,7 @@ impl Caelestia {
                     let count = self.dashboard.global::<ShellGlobal>().get_sys().disk_count.max(1) as u64;
                     // From "system drive" start at the next real index.
                     let next = if cur == u64::MAX { 1 } else { (cur + 1) % count };
-                    svc.sysmon.disk_index.store(next, Ordering::Relaxed);
+                    svc.sysmon.set_disk(next);
                 }
             }
             "weather-refresh" => {
@@ -183,7 +183,7 @@ impl Caelestia {
                 if !audio::set_default(arg) {
                     log::warn!("could not set default audio device {arg}");
                 }
-                self.st.borrow_mut().audio_lists = Default::default();
+                self.st.borrow_mut().audio_lists_at = None; // read the new default now
                 self.refresh_status();
             }
             "bt-connect" | "bt-disconnect" => {
