@@ -85,7 +85,7 @@ export component UtilitiesWindow inherits Window {
     property <length> panel-w: 320px;
     property <length> panel-h: col.preferred-height;
     width: root.panel-w + Theme.t.border-rounding;
-    height: root.panel-h + Theme.t.border-rounding;
+    height: root.panel-h + Theme.t.border-rounding + frame.room;
 
     frame := DrawerFrame {
         edge: Edge.bottom-right;

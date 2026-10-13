@@ -1,7 +1,7 @@
 // Bottom drawer (Caelestia modules/launcher): fuzzy app search, `>` actions
 // and a wallpaper carousel. Filtering happens in Rust (nucleo), the UI only
 // renders results and handles keyboard navigation.
-import { Theme } from "../theme.slint";
+import { Theme, Motion } from "../theme.slint";
 import { Shell, AppEntry, WallpaperEntry, PickerEntry } from "../state.slint";
 import { StyledText, MaterialIcon, StateLayer, StyledInput } from "../components/base.slint";
 import { DrawerFrame, Edge } from "../components/drawer.slint";
@@ -27,6 +27,13 @@ export component LauncherWindow inherits Window {
     in-out property <string> query <=> search.text;
 
     callback search-changed(string);
+    // The search field owns the keyboard while the launcher is open (arrows,
+    // Enter and Esc are caught by the key scope above it). Slint drops its
+    // focus when the result rows are rebuilt from none to many: take it back.
+    property <bool> search-focused: search.input-focused;
+    changed search-focused => {
+        if !self.search-focused && root.open && root.picker-mode == "" { search.focus-input(); }
+    }
 
     out property <length> blur-x: frame.panel-x;
     out property <length> blur-y: frame.panel-y;
@@ -54,7 +61,8 @@ export component LauncherWindow inherits Window {
     property <length> pad: Theme.padding-large;
 
     width: 600px + Theme.t.border-rounding * 2;
-    height: root.max-shown * root.item-h + 44px + Theme.padding-large * 3 + 10px;
+    // Tallest list, plus room for the spatial overshoot.
+    height: root.max-shown * root.item-h + 44px + Theme.padding-large * 3 + 10px + 12px;
 
     changed selected => {
         if root.picker-mode != "" { root.picker-preview(root.selected); }
@@ -72,10 +80,12 @@ export component LauncherWindow inherits Window {
         open: root.open;
         panel-width: 600px;
         panel-height: root.list-h + 44px + root.pad * 2 + (root.shown > 0 || root.wallpaper-mode || root.picker-mode != "" ? Theme.spacing-normal : 0);
-        animate panel-height { duration: Theme.anim-normal; easing: cubic-bezier(0.05, 0.7, 0.1, 1); }
+        animate panel-height { duration: Theme.anim-spatial; easing: Motion.spatial; }
 
         keys := FocusScope {
             capture-key-pressed(e) => {
+                // Shell shortcuts (e.g. the launcher's own, to close it).
+                if (e.modifiers.control || e.modifiers.alt || e.modifiers.meta) && Shell.hotkey(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta) { return accept; }
                 if e.text == Key.Escape { root.dismiss(); return accept; }
                 if root.picker-mode != "" {
                     if e.text == Key.LeftArrow || e.text == Key.UpArrow { root.selected = max(0, root.selected - 1); return accept; }

@@ -212,8 +212,7 @@ impl Caelestia {
         }
         // Hide once the close animation has finished, unless reopened meanwhile.
         let weak = self.weak.clone();
-        let anim = (300.0 * self.anim_scale().max(0.1)) as u64;
-        Timer::single_shot(Duration::from_millis(anim + 60), move || {
+        Timer::single_shot(self.close_delay(), move || {
             if let Some(app) = weak.upgrade() {
                 let ds = app.st.borrow().drawers[d as usize];
                 if ds.generation == generation && !ds.open {
@@ -221,6 +220,12 @@ impl Caelestia {
                 }
             }
         });
+    }
+
+    /// How long a drawer/popout takes to close: `Theme.anim-spatial` (500 ms,
+    /// scaled) plus a frame of slack, after which its window can be hidden.
+    pub(super) fn close_delay(&self) -> Duration {
+        Duration::from_millis((500.0 * self.anim_scale().max(0.1)) as u64 + 60)
     }
 
     pub(super) fn close_all(&self) {

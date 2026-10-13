@@ -160,6 +160,66 @@ pub(super) fn average_luminance(path: &Path) -> Option<f32> {
     Some(img.pixels().map(|p| (0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32) / 255.0).sum::<f32>() / n)
 }
 
+/// Wallpaper preview fitting `px`×`px`: Explorer's thumbnail cache when it has
+/// one (fast), else decoded here. Windows without the codec (WebP extension
+/// removed by "debloat" scripts, LTSC/N editions) or with thumbnails turned off
+/// returns nothing, which left the cards blank. Call off the UI thread.
+pub(super) fn wallpaper_thumbnail(path: &Path, px: i32) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
+    path_thumbnail(path, px, false).or_else(|| decode_thumbnail(path, px.max(1) as u32))
+}
+
+/// Decodes `path` upright (EXIF orientation) scaled to fit `px`×`px`, as the
+/// premultiplied RGBA `Image::from_rgba8_premultiplied` expects.
+pub(super) fn decode_thumbnail(path: &Path, px: u32) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
+    use image::ImageDecoder;
+    let mut decoder = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?.into_decoder().ok()?;
+    let orientation = decoder.orientation().unwrap_or(image::metadata::Orientation::NoTransforms);
+    let mut img = image::DynamicImage::from_decoder(decoder).ok()?;
+    img.apply_orientation(orientation);
+    let rgba = img.thumbnail(px, px).into_rgba8();
+    let mut buf = SharedPixelBuffer::<Rgba8Pixel>::new(rgba.width(), rgba.height());
+    for (dst, p) in buf.make_mut_slice().iter_mut().zip(rgba.pixels()) {
+        let [r, g, b, a] = p.0;
+        let pm = |c: u8| ((c as u16 * a as u16 + 127) / 255) as u8;
+        *dst = Rgba8Pixel { r: pm(r), g: pm(g), b: pm(b), a };
+    }
+    Some(buf)
+}
+
+/// One step of Material 3 Expressive's default spatial spring (stiffness 380,
+/// damping ratio 0.8: settles in well under 0.5 s with at most a slight
+/// overshoot, like the `Motion.spatial` curve). Semi-implicit Euler: stable at
+/// frame-sized `dt`.
+pub(super) fn spring_step(pos: f32, vel: f32, target: f32, dt: f32) -> (f32, f32) {
+    const STIFFNESS: f32 = 380.0;
+    const DAMPING: f32 = 2.0 * 0.8 * 19.493_59; // 2 * ratio * sqrt(stiffness)
+    let vel = vel + (STIFFNESS * (target - pos) - DAMPING * vel) * dt;
+    (pos + vel * dt, vel)
+}
+
+/// Makes `model` equal `new` with the fewest row changes, matching rows by
+/// `key`: kept rows are updated in place (their UI items survive), the rest
+/// are inserted or removed. Keys are assumed unique.
+pub(super) fn sync_keyed<T: Clone + 'static, K: PartialEq>(model: &VecModel<T>, new: Vec<T>, key: impl Fn(&T) -> K) {
+    use slint::Model;
+    for i in (0..model.row_count()).rev() {
+        if model.row_data(i).is_some_and(|r| !new.iter().any(|n| key(n) == key(&r))) {
+            model.remove(i);
+        }
+    }
+    for (i, item) in new.into_iter().enumerate() {
+        let k = key(&item);
+        match (i..model.row_count()).find(|&j| model.row_data(j).is_some_and(|r| key(&r) == k)) {
+            Some(j) if j == i => model.set_row_data(i, item),
+            Some(j) => {
+                model.remove(j);
+                model.insert(i, item);
+            }
+            None => model.insert(i, item),
+        }
+    }
+}
+
 pub(super) fn add_months(d: NaiveDate, months: i32) -> NaiveDate {
     let total = d.year() * 12 + d.month0() as i32 + months;
     NaiveDate::from_ymd_opt(total.div_euclid(12), total.rem_euclid(12) as u32 + 1, 1).unwrap_or(d)
@@ -203,6 +263,48 @@ pub(super) fn cookie_path() -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn spring_settles_like_the_spatial_curve() {
+        // 200 px jump at 60 fps: at most a slight overshoot, settled within 0.6 s.
+        let (mut pos, mut vel, mut peak) = (0.0f32, 0.0f32, 0.0f32);
+        for _ in 0..36 {
+            (pos, vel) = spring_step(pos, vel, 200.0, 1.0 / 60.0);
+            peak = peak.max(pos);
+        }
+        assert!(peak < 206.0, "overshoot {peak}");
+        assert!((pos - 200.0).abs() < 0.5 && vel.abs() < 5.0, "settled {pos} {vel}");
+    }
+
+    #[test]
+    fn keyed_sync_keeps_rows_and_follows_order() {
+        use slint::Model;
+        let rows = |m: &VecModel<(i32, &'static str)>| (0..m.row_count()).filter_map(|i| m.row_data(i)).collect::<Vec<_>>();
+        let m = VecModel::from(vec![(1, "a"), (2, "b"), (3, "c")]);
+        // 2 dropped, 3 updated in place, 4 new on top, 1 moved after it.
+        sync_keyed(&m, vec![(4, "d"), (3, "C"), (1, "a")], |r| r.0);
+        assert_eq!(rows(&m), [(4, "d"), (3, "C"), (1, "a")]);
+        sync_keyed(&m, vec![], |r| r.0);
+        assert_eq!(m.row_count(), 0);
+    }
+
+    #[test]
+    fn decoded_thumbnails_fit_and_are_premultiplied() {
+        let dir = std::env::temp_dir().join(format!("caelestia-thumb-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // 400×200 half-transparent red: fits 100 px as 100×50, colour premultiplied.
+        let png = dir.join("wall.png");
+        image::RgbaImage::from_pixel(400, 200, image::Rgba([200, 0, 0, 128])).save(&png).unwrap();
+        let buf = decode_thumbnail(&png, 100).unwrap();
+        assert_eq!((buf.width(), buf.height()), (100, 50));
+        let p = buf.as_slice()[0];
+        assert_eq!((p.r, p.g, p.b, p.a), (100, 0, 0, 128));
+        // Not an image: no thumbnail, no panic.
+        let txt = dir.join("notes.png");
+        std::fs::write(&txt, "not an image").unwrap();
+        assert!(decode_thumbnail(&txt, 100).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn notification_bodies_are_capped() {

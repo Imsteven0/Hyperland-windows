@@ -226,25 +226,37 @@ export component StyledSlider inherits Rectangle {
         }
     }
     handle := Rectangle {
-        width: 4px;
+        width: fs.has-focus ? 6px : 4px;
         height: root.height;
         x: clamp(root.width * root.ratio - self.width / 2, 0, root.width - self.width);
         border-radius: 2px;
-        background: Theme.c.primary;
+        background: fs.has-focus ? Theme.c.on-surface : Theme.c.primary;
     }
-    ta := TouchArea {
-        mouse-cursor: pointer;
-        moved => { root.set-from(self.mouse-x); }
-        pointer-event(e) => {
-            if e.kind == PointerEventKind.down { root.set-from(self.mouse-x); }
-            if e.kind == PointerEventKind.up { root.released(root.value); }
+    // Arrow keys once focused (click or Tab), like the mouse wheel.
+    fs := FocusScope {
+        key-pressed(e) => {
+            if e.text == Key.LeftArrow || e.text == Key.DownArrow { root.nudge(-1); return accept; }
+            if e.text == Key.RightArrow || e.text == Key.UpArrow { root.nudge(1); return accept; }
+            reject
         }
-        scroll-event(e) => {
-            root.value = clamp(root.value + (e.delta-y > 0 ? 1 : -1) * (root.step > 0 ? root.step : (root.maximum - root.minimum) / 20), root.minimum, root.maximum);
-            root.changed(root.value);
-            root.released(root.value);
-            accept
+        ta := TouchArea {
+            mouse-cursor: pointer;
+            moved => { root.set-from(self.mouse-x); }
+            pointer-event(e) => {
+                if e.kind == PointerEventKind.down { fs.focus(); root.set-from(self.mouse-x); }
+                if e.kind == PointerEventKind.up { root.released(root.value); }
+            }
+            scroll-event(e) => {
+                root.nudge(e.delta-y > 0 ? 1 : -1);
+                accept
+            }
         }
+    }
+    function nudge(dir: int) {
+        let raw = clamp(root.value + dir * (root.step > 0 ? root.step : (root.maximum - root.minimum) / 20), root.minimum, root.maximum);
+        root.value = root.step > 0 ? Math.round(raw / root.step) * root.step : raw;
+        root.changed(root.value);
+        root.released(root.value);
     }
     function set-from(px: length) {
         let r = clamp(px / root.width, 0, 1);
@@ -337,6 +349,7 @@ export component StyledInput inherits Rectangle {
     in property <length> font-size: Theme.font-larger;
     callback accepted(string);
     callback edited(string);
+    out property <bool> input-focused: input.has-focus;
     public function focus-input() { input.focus(); }
     public function clear() { input.text = ""; }
 

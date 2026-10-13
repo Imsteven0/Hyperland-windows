@@ -2,7 +2,7 @@
 // Lists what Windows keeps in its Action Center, grouped by app, newest
 // first. Rust reads them (UserNotificationListener) and builds the groups;
 // the UI only renders them and emits actions.
-import { Theme } from "../theme.slint";
+import { Theme, Motion } from "../theme.slint";
 import { Shell, NotifGroup } from "../state.slint";
 import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, TextButton } from "../components/base.slint";
 import { DrawerFrame, Edge } from "../components/drawer.slint";
@@ -11,7 +11,30 @@ component NotifCard inherits Rectangle {
     in property <NotifGroup> g;
     border-radius: Theme.rounding-normal;
     background: Theme.layer(Theme.c.surface-container-high, 2);
+    // Enters growing in from the screen edge; leaves fading and shrinking back
+    // into it. Height is never animated: the window follows the content, and a
+    // per-frame resize of a native window would stutter.
+    property <float> appear: 0;
+    property <bool> leaving;
+    init => { self.appear = 1; }
+    animate appear { duration: root.leaving ? Theme.anim-fast-effects : Theme.anim-spatial; easing: root.leaving ? Motion.fast-effects : Motion.spatial; }
     height: col.preferred-height;
+    opacity: Math.clamp(root.appear, 0, 1);
+    transform-origin: { x: self.width, y: self.height / 2 };
+    transform-scale: 0.92 + Math.clamp(root.appear, 0, 1.05) * 0.08;
+    function dismiss() {
+        root.leaving = true;
+        root.appear = 0;
+        leave.running = true;
+    }
+    leave := Timer {
+        interval: Math.max(1ms, Theme.anim-fast-effects);
+        running: false;
+        triggered => {
+            self.running = false;
+            Shell.action("notif-dismiss-group", root.g.app-id);
+        }
+    }
 
     col := VerticalLayout {
         padding: Theme.padding-normal;
@@ -37,7 +60,7 @@ component NotifCard inherits Rectangle {
                 icon: "close";
                 size: 22px;
                 icon-size: Theme.font-normal;
-                clicked => { Shell.action("notif-dismiss-group", root.g.app-id); }
+                clicked => { root.dismiss(); }
             }
         }
         for n in root.g.items: Rectangle {
@@ -100,7 +123,7 @@ export component SidebarWindow inherits Window {
     property <int> count: Shell.notif-count;
 
     width: root.panel-w + Theme.t.border-rounding;
-    height: root.panel-h + Theme.t.border-rounding;
+    height: root.panel-h + Theme.t.border-rounding + frame.room;
 
     frame := DrawerFrame {
         edge: Edge.top-right;

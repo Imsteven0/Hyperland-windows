@@ -28,7 +28,7 @@ impl Caelestia {
         let cy = (area.top + (y * sc).round() as i32).clamp(area.top + t + half_panel, (area.bottom - t - half_panel).max(area.top + t + half_panel));
         let top = cy - h / 2;
         self.popout.window().set_size(slint::PhysicalSize::new(w as u32, h as u32));
-        self.popout.window().set_position(PhysicalPosition::new(x, top));
+        self.move_popout(x, top, was_open);
         {
             let mut st = self.st.borrow_mut();
             let p = &mut st.popout;
@@ -42,6 +42,58 @@ impl Caelestia {
             self.popout.set_open(true);
         }
         self.ensure_blur_tracking();
+    }
+
+    /// Places the popout at `(x, top)`: a jump when it just opened (or in
+    /// performance mode), else a spring glide from where it is, stretching
+    /// along the motion like Caelestia's blobs. The timer runs only while moving.
+    fn move_popout(&self, x: i32, top: i32, glide: bool) {
+        let mut m = self.popout_motion.borrow_mut();
+        m.x = x;
+        m.target = top as f32;
+        if !glide || self.anim_scale() <= 0.0 {
+            (m.y, m.vel, m.last) = (top as f32, 0.0, None);
+            drop(m);
+            self.popout_timer.stop();
+            self.popout.set_stretch(1.0);
+            self.popout.window().set_position(PhysicalPosition::new(x, top));
+            return;
+        }
+        if self.popout_timer.running() {
+            return; // already gliding: it just heads for the new target
+        }
+        m.last = Some(Instant::now());
+        drop(m);
+        let weak = self.weak.clone();
+        self.popout_timer.start(TimerMode::Repeated, Duration::from_millis(16), move || {
+            if let Some(app) = weak.upgrade() {
+                app.step_popout();
+            }
+        });
+    }
+
+    fn step_popout(&self) {
+        let speed = self.anim_scale().max(0.1); // >1 = slower animations
+        let (x, y, vel, settled) = {
+            let mut m = self.popout_motion.borrow_mut();
+            let now = Instant::now();
+            // Real elapsed time (capped, so a stalled frame can't fling it).
+            let dt = m.last.map_or(1.0 / 60.0, |t| now.duration_since(t).as_secs_f32()).min(1.0 / 30.0) / speed;
+            m.last = Some(now);
+            (m.y, m.vel) = spring_step(m.y, m.vel, m.target, dt);
+            let settled = (m.y - m.target).abs() < 0.5 && m.vel.abs() < 5.0;
+            if settled {
+                (m.y, m.vel) = (m.target, 0.0);
+            }
+            (m.x, m.y, m.vel, settled)
+        };
+        self.popout.window().set_position(PhysicalPosition::new(x, y.round() as i32));
+        // Stretch along the motion from the logical speed (px/s), at most 15%.
+        let logical = vel.abs() / self.popout.window().scale_factor();
+        self.popout.set_stretch(1.0 + (logical / 12_000.0).min(0.15));
+        if settled {
+            self.popout_timer.stop();
+        }
     }
 
     /// Runs the blur-follow loop while any translucent surface is on screen.
@@ -120,8 +172,10 @@ impl Caelestia {
             st.popout.generation
         };
         self.popout.set_open(false);
+        self.popout_timer.stop();
+        self.popout.set_stretch(1.0);
         let weak = self.weak.clone();
-        Timer::single_shot(Duration::from_millis(320), move || {
+        Timer::single_shot(self.close_delay(), move || {
             if let Some(app) = weak.upgrade() {
                 let p = app.st.borrow().popout.clone();
                 if !p.open && p.generation == generation {
