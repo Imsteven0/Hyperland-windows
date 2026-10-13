@@ -55,7 +55,7 @@ pub fn default_config() -> Value {
                 "showNetwork": true,
                 "showMicrophone": true
             },
-            "workspaces": { "shown": 5, "activeIndicator": true, "showWindows": false }
+            "workspaces": { "shown": 5, "activeIndicator": true, "activeTrail": true, "showWindows": false }
         },
         "border": { "rounding": 25, "thickness": 10 },
         "dashboard": {

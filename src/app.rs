@@ -750,6 +750,7 @@ impl Caelestia {
             bar_persistent: cfg.bool("bar.persistent"),
             bar_show_workspaces: cfg.bar_entry("workspaces"),
             bar_workspaces_shown: cfg.i64("bar.workspaces.shown").clamp(1, 10) as i32,
+            bar_active_trail: cfg.bool("bar.workspaces.activeTrail"),
             bar_show_active_window: cfg.bar_entry("activeWindow"),
             bar_show_clock: cfg.bar_entry("clock"),
             bar_show_status: cfg.bar_entry("statusIcons"),
@@ -1636,7 +1637,7 @@ impl Caelestia {
             let entries: Vec<(String, Vec<isize>)> = m.workspaces.iter().map(|w| (w.name.clone(), w.windows.clone())).collect();
             let g = s.bar.global::<ShellGlobal>();
             g.set_workspaces(self.workspace_model(&entries));
-            g.set_active_workspace(m.focused as i32 + 1);
+            set_active_workspace(&g, m.focused as i32 + 1);
         }
     }
 
@@ -2714,7 +2715,7 @@ impl Caelestia {
         for s in self.screens.borrow().iter() {
             let g = s.bar.global::<ShellGlobal>();
             g.set_workspaces(model.clone());
-            g.set_active_workspace(d.current as i32);
+            set_active_workspace(&g, d.current as i32);
         }
         self.st.borrow_mut().desktops = d;
     }
@@ -3368,6 +3369,20 @@ impl Drop for Caelestia {
 // helpers
 // ----------------------------------------------------------------------
 
+/// Switches the bar's active workspace, telling it the direction first so
+/// the active trail stretches the right way.
+fn set_active_workspace(g: &ShellGlobal<'_>, active: i32) {
+    let previous = g.get_active_workspace();
+    if previous != active {
+        g.set_workspace_direction(workspace_direction(previous, active));
+        g.set_active_workspace(active);
+    }
+}
+
+fn workspace_direction(from: i32, to: i32) -> i32 {
+    if to < from { -1 } else { 1 }
+}
+
 fn is_integral_key(path: &str) -> bool {
     matches!(path, "border.thickness" | "border.rounding" | "bar.workspaces.shown" | "launcher.maxShown" | "bar.sizes.innerWidth") || path.starts_with("windows.komorebi.")
 }
@@ -3504,4 +3519,40 @@ fn cookie_path() -> String {
     }
     s.push_str(" Z");
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_direction_follows_the_switch() {
+        assert_eq!(workspace_direction(1, 3), 1);
+        assert_eq!(workspace_direction(4, 2), -1);
+        assert_eq!(workspace_direction(2, 2), 1);
+    }
+
+    #[test]
+    fn parses_locale_numbers() {
+        // Slint formats floats with the UI locale: Spanish sends "0,45".
+        assert_eq!(parse_num::<f64>("0,45"), Some(0.45));
+        assert_eq!(parse_num::<f64>(" 0.45 "), Some(0.45));
+        assert_eq!(parse_num::<f32>("12"), Some(12.0));
+        assert_eq!(parse_num::<f64>("abc"), None);
+    }
+
+    #[test]
+    fn months_wrap_across_years() {
+        let d = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        assert_eq!(add_months(d, -1), NaiveDate::from_ymd_opt(2025, 12, 1).unwrap());
+        assert_eq!(add_months(d, 12), NaiveDate::from_ymd_opt(2027, 1, 1).unwrap());
+        assert_eq!(add_months(d, 0), NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
+    }
+
+    #[test]
+    fn integral_keys_stay_integers() {
+        assert!(is_integral_key("border.thickness"));
+        assert!(is_integral_key("windows.komorebi.borderWidth"));
+        assert!(!is_integral_key("appearance.transparency.base"));
+    }
 }

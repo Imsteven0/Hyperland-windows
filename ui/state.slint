@@ -67,6 +67,7 @@ export struct UiConfig {
     bar-persistent: bool,
     bar-show-workspaces: bool,
     bar-workspaces-shown: int,
+    bar-active-trail: bool,
     bar-show-active-window: bool,
     bar-show-clock: bool,
     bar-show-status: bool,
@@ -134,6 +135,8 @@ export global Shell {
     // workspaces / windows
     in property <[Workspace]> workspaces;
     in property <int> active-workspace: 1;
+    // +1 / -1: where the last switch went (drives the bar's active trail).
+    in property <int> workspace-direction: 1;
     in property <string> active-title;
     in property <string> active-app;
     // services
@@ -159,7 +162,7 @@ export global Shell {
     in property <float> wallpaper-dl-progress;
     // config view
     in property <UiConfig> cfg: {
-        bar-persistent: true, bar-show-workspaces: true, bar-workspaces-shown: 5,
+        bar-persistent: true, bar-show-workspaces: true, bar-workspaces-shown: 5, bar-active-trail: true,
         bar-show-active-window: true, bar-show-clock: true, bar-show-status: true, bar-show-power: true,
         bar-show-audio: true, bar-show-network: true, bar-show-bluetooth: true, bar-show-battery: true,
         clock-12h: true, dashboard-enabled: true, dashboard-show-on-hover: true,

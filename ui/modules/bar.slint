@@ -60,15 +60,34 @@ component Workspaces inherits Rectangle {
         }
     }
 
-    // Active pill (stretches over the workspace's icons).
+    // Active pill (stretches over the workspace's icons). With Caelestia's
+    // `activeTrail` its two edges move separately: the leading edge jumps to
+    // the target first and the trailing one catches up, so the pill stretches
+    // towards the new workspace and then contracts into it. Rust sets
+    // `workspace-direction` before the active workspace, so the durations
+    // below are already right when the animation starts.
+    property <bool> trail: Shell.cfg.bar-active-trail;
+    property <bool> down: Shell.workspace-direction >= 0;
+    property <length> target-top: root.inset + root.slot-y(root.active - 1);
+    property <length> top-edge: root.target-top;
+    property <length> bottom-edge: root.target-top + root.slot-h(root.active - 1);
+    property <duration> lead: Theme.anim-small;
+    property <duration> follow: Theme.anim-normal + Theme.anim-small / 2;
+    animate top-edge {
+        duration: !root.trail ? Theme.anim-normal : root.down ? root.follow : root.lead;
+        easing: !root.trail ? cubic-bezier(0.38, 1.21, 0.22, 1) : root.down ? cubic-bezier(0.05, 0.7, 0.1, 1) : cubic-bezier(0.2, 0, 0, 1);
+    }
+    animate bottom-edge {
+        duration: !root.trail ? Theme.anim-normal : root.down ? root.lead : root.follow;
+        easing: !root.trail ? cubic-bezier(0.38, 1.21, 0.22, 1) : root.down ? cubic-bezier(0.2, 0, 0, 1) : cubic-bezier(0.05, 0.7, 0.1, 1);
+    }
     Rectangle {
         x: (root.width - self.width) / 2;
-        y: root.inset + root.slot-y(root.active - 1);
+        y: root.top-edge;
         width: root.item;
-        height: root.slot-h(root.active - 1);
+        height: max(root.item, root.bottom-edge - root.top-edge);
         border-radius: Theme.rounding-full;
         background: Theme.c.primary;
-        animate y, height { duration: Theme.anim-normal; easing: cubic-bezier(0.38, 1.21, 0.22, 1); }
     }
 
     for i in root.shown: slot := Rectangle {
