@@ -73,13 +73,16 @@ component Workspaces inherits Rectangle {
     property <length> bottom-edge: root.target-top + root.slot-h(root.active - 1);
     property <duration> lead: Theme.anim-small;
     property <duration> follow: Theme.anim-normal + Theme.anim-small / 2;
+    // Leading edge: short and decelerating (jumps off at once). Trailing
+    // edge: longer with a gentle start, so the pill stretches before it
+    // contracts instead of shrinking first.
     animate top-edge {
         duration: !root.trail ? Theme.anim-normal : root.down ? root.follow : root.lead;
-        easing: !root.trail ? cubic-bezier(0.38, 1.21, 0.22, 1) : root.down ? cubic-bezier(0.05, 0.7, 0.1, 1) : cubic-bezier(0.2, 0, 0, 1);
+        easing: !root.trail ? cubic-bezier(0.38, 1.21, 0.22, 1) : root.down ? cubic-bezier(0.2, 0, 0, 1) : cubic-bezier(0.05, 0.7, 0.1, 1);
     }
     animate bottom-edge {
         duration: !root.trail ? Theme.anim-normal : root.down ? root.lead : root.follow;
-        easing: !root.trail ? cubic-bezier(0.38, 1.21, 0.22, 1) : root.down ? cubic-bezier(0.2, 0, 0, 1) : cubic-bezier(0.05, 0.7, 0.1, 1);
+        easing: !root.trail ? cubic-bezier(0.38, 1.21, 0.22, 1) : root.down ? cubic-bezier(0.05, 0.7, 0.1, 1) : cubic-bezier(0.2, 0, 0, 1);
     }
     Rectangle {
         x: (root.width - self.width) / 2;

@@ -747,6 +747,7 @@ component DotsGallery inherits Rectangle {
             accepted(t) => { if !root.busy { Shell.action("dots-fetch", t); } }
         }
         if Shell.dots-recent.length > 0: HorizontalLayout {
+            alignment: start;
             spacing: Theme.spacing-small;
             StyledText { text: @tr("Recent"); font-size: Theme.font-small; color: Theme.c.outline; }
             for r[i] in Shell.dots-recent: Rectangle {

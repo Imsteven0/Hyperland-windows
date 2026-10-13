@@ -149,6 +149,8 @@ export component LauncherWindow inherits Window {
                                     width: 32px;
                                     height: 32px;
                                     text: app.emoji;
+                                    // Colour glyphs ignore it; a monochrome fallback stays readable.
+                                    color: Theme.c.on-surface;
                                     font-family: "Segoe UI Emoji";
                                     font-size: 24px;
                                     horizontal-alignment: center;
