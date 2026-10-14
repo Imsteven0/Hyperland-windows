@@ -494,8 +494,8 @@ msgstr "Separación con el marco"
 msgid "Window animations"
 msgstr "Animaciones de ventanas"
 
-msgid "komorebi movement animations, timed by the shell's animation speed"
-msgstr "Animaciones de movimiento de komorebi, con la velocidad de animación del shell"
+msgid "Windows glide into place inside a workspace, timed by the animation speed"
+msgstr "Las ventanas se deslizan a su sitio dentro de un espacio, con la velocidad de animación"
 
 msgid "Alt+H/J/K/L focus · Alt+Shift+H/J/K/L move · Alt+1..8 workspaces"
 msgstr "Alt+H/J/K/L foco · Alt+Mayús+H/J/K/L mover · Alt+1..8 espacios"
@@ -916,3 +916,18 @@ msgstr "Instalando {}…"
 
 msgid "Couldn't install the update"
 msgstr "No se pudo instalar la actualización"
+
+msgid "Workspace switch"
+msgstr "Cambio de espacio"
+
+msgid "How windows change between workspaces, like Hyprland"
+msgstr "Cómo cambian las ventanas entre espacios, como en Hyprland"
+
+msgid "Slide"
+msgstr "Deslizar"
+
+msgid "Vertical"
+msgstr "Vertical"
+
+msgid "Fade"
+msgstr "Desvanecer"

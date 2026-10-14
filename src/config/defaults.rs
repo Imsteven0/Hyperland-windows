@@ -121,6 +121,7 @@ pub fn default_config() -> Value {
                 "workspacePadding": 10,
                 "containerPadding": 10,
                 "animations": true,
+                "workspaceAnimation": "slide",
                 "layeredApps": ["*", "claude.exe"],
                 "binds": {}
             },

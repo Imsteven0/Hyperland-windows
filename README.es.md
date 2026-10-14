@@ -101,7 +101,8 @@ para cerrar y `Mayús+Supr` para borrar una entrada del portapapeles. Todos los
 atajos se cambian en `windows.shortcuts`.
 
 Desde una terminal: `caelestia toggle launcher|dashboard|utilities|session|sidebar|settings`,
-`caelestia launcher calc|emoji|clipboard`, `caelestia reload`, `caelestia quit`.
+`caelestia launcher calc|emoji|clipboard`, `caelestia workspace 1..8|next|prev`
+(con komorebi, animado como `Alt+1..8`), `caelestia reload`, `caelestia quit`.
 
 ## Mosaico con komorebi
 
@@ -109,6 +110,16 @@ Desde una terminal: `caelestia toggle launcher|dashboard|utilities|session|sideb
    el botón **Instalar komorebi** de Ajustes › Paneles › Mosaico.
 2. Activa **Usar komorebi para el mosaico**. La barra mostrará los espacios de
    komorebi de cada monitor.
+
+**Animaciones como en la configuración de Hyprland de Caelestia.** Dentro de un
+espacio, las ventanas se deslizan a su sitio con las animaciones de movimiento
+de komorebi (`windowsMove` de Caelestia: 600 ms con la curva *standard* de
+Material). komorebi cambia de espacio al instante, así que el shell reproduce el
+cambio: el deslizamiento `workspaces` de Hyprland (500 ms, misma curva), con
+miniaturas en vivo de las ventanas sobre tu escritorio real, bajo la barra y el
+marco. Elige **Deslizar**, **Vertical**, **Desvanecer** o **Desactivado** en
+Ajustes › Paneles › Mosaico (`windows.komorebi.workspaceAnimation`). Ambas siguen
+la velocidad de animación y se pausan en el modo rendimiento.
 
 Atajos principales: `Alt+H/J/K/L` enfocar, `Alt+Mayús+H/J/K/L` mover,
 `Alt+1..8` ir a un espacio, `Alt+Mayús+1..8` llevar la ventana, `Alt+T` flotante,

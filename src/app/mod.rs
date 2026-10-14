@@ -81,6 +81,7 @@ mod settings;
 mod startup;
 mod status;
 mod wallpaper;
+mod workspace_anim;
 mod workspaces;
 
 use helpers::*;
@@ -240,6 +241,9 @@ struct State {
     dots_gen: u32,
     /// Performance mode (reduced effects) and why.
     perf: perf::Tracker,
+    /// Workspace switch animation in progress (komorebi).
+    ws_anim: Option<workspace_anim::WsTransition>,
+    ws_anim_gen: u64,
     weather_query: Option<WeatherQuery>,
     settings_visible: bool,
 }
@@ -300,6 +304,8 @@ pub struct Caelestia {
     icons: IconCache,
     /// Click-through for WebView2 overlays left behind by hidden apps.
     ghosts: RefCell<crate::platform::ghosts::GhostGuard>,
+    /// Stage for workspace switch animations, created on first use.
+    ws_stage: RefCell<Option<crate::platform::workspace_overlay::Overlay>>,
     watcher: RefCell<Option<Watcher>>,
     clip_watcher: RefCell<Option<crate::platform::clipboard::ClipboardWatcher>>,
     plugin_runner: RefCell<Option<PluginRunner>>,
@@ -381,6 +387,8 @@ impl Caelestia {
                 fuzzy: Fuzzy::default(),
                 clips: ClipHistory::new(50),
                 perf: perf::Tracker::new(2),
+                ws_anim: None,
+                ws_anim_gen: 0,
                 plugins: Vec::new(),
                 plugin_results: Vec::new(),
                 plugin_listing: Vec::new(),
@@ -406,6 +414,7 @@ impl Caelestia {
             popout_motion: RefCell::new(PopoutMotion::default()),
             popout_timer: Timer::default(),
             ghosts: RefCell::new(crate::platform::ghosts::GhostGuard::with_state(paths.state_dir.join("click-through.json"))),
+            ws_stage: RefCell::new(None),
             icons: IconCache::new(40, |key, buf| {
                 post(move |app| {
                     app.icons.store(key, buf);
@@ -440,6 +449,7 @@ impl Caelestia {
     pub fn shutdown(&self) {
         system::keep_awake(false);
         self.ghosts.borrow_mut().restore_all();
+        self.ws_anim_stop();
         for s in self.screens.borrow_mut().iter_mut() {
             s.appbars.clear();
             let _ = s.bar.hide();

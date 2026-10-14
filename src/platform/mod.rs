@@ -10,6 +10,7 @@ pub mod ghosts;
 pub mod shell_items;
 pub mod system;
 pub mod window;
+pub mod workspace_overlay;
 
 use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED, CoInitializeEx};
 

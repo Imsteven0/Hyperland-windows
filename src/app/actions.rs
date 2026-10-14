@@ -18,6 +18,8 @@ impl Caelestia {
                     let y = (area.height() as f32 / sc) * 0.8;
                     self.show_popout(&format!("{kind}:{y}"));
                     self.st.borrow_mut().popout.item_hovered = true;
+                } else if let Some(ws) = other.strip_prefix("workspace:") {
+                    self.ipc_workspace(ws);
                 } else if let Some(kind) = other.strip_prefix("picker:") {
                     self.open_picker(match kind {
                         "variant" => "variant",
@@ -42,9 +44,28 @@ impl Caelestia {
         }
     }
 
+    /// `caelestia workspace <n>|next|prev`: komorebi's workspace on the
+    /// focused monitor (animated like the shortcuts), or the virtual desktop.
+    fn ipc_workspace(&self, ws: &str) {
+        if self.komorebi_active() {
+            let cmd = match ws {
+                "next" => "cycle-workspace next".to_owned(),
+                "prev" => "cycle-workspace previous".to_owned(),
+                n => format!("focus-workspace {}", n.parse::<usize>().unwrap_or(1).saturating_sub(1)),
+            };
+            return self.on_hotkey(&format!("komorebi:{cmd}"));
+        }
+        match ws {
+            "next" => self.action("workspace-relative", "1"),
+            "prev" => self.action("workspace-relative", "-1"),
+            n => self.action("workspace", n),
+        }
+    }
+
     pub(super) fn on_hotkey(&self, target: &str) {
         if let Some(cmd) = target.strip_prefix("komorebi:") {
             if self.komorebi_active() {
+                self.ws_anim_before_command(cmd);
                 komorebi::command_line(cmd);
             }
             return;

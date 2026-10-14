@@ -17,3 +17,4 @@ pub mod temps;
 pub mod updates;
 pub mod wallpaper_repo;
 pub mod weather;
+pub mod workspace_anim;

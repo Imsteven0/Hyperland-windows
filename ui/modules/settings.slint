@@ -599,7 +599,17 @@ component TilingSection inherits VerticalLayout {
     SliderRow { title: @tr("Border width"); key: "windows.komorebi.borderWidth"; value: Shell.cfg.komorebi-border-width; minimum: 1; maximum: 10; step: 1; decimals: 0; }
     SliderRow { title: @tr("Gaps between windows"); key: "windows.komorebi.containerPadding"; value: Shell.cfg.komorebi-gap-inner; minimum: 0; maximum: 40; step: 1; decimals: 0; }
     SliderRow { title: @tr("Gaps to the frame"); key: "windows.komorebi.workspacePadding"; value: Shell.cfg.komorebi-gap-outer; minimum: 0; maximum: 40; step: 1; decimals: 0; }
-    SwitchRow { title: @tr("Window animations"); subtitle: @tr("komorebi movement animations, timed by the shell's animation speed"); key: "windows.komorebi.animations"; value: Shell.cfg.komorebi-animations; }
+    SwitchRow { title: @tr("Window animations"); subtitle: @tr("Windows glide into place inside a workspace, timed by the animation speed"); key: "windows.komorebi.animations"; value: Shell.cfg.komorebi-animations; }
+    SettingRow {
+        title: @tr("Workspace switch");
+        subtitle: @tr("How windows change between workspaces, like Hyprland");
+        for s in [{ id: "slide", name: @tr("Slide") }, { id: "slidevert", name: @tr("Vertical") }, { id: "fade", name: @tr("Fade") }, { id: "none", name: @tr("Off") }]: Chip {
+            y: (parent.height - self.height) / 2;
+            text: s.name;
+            selected: Shell.cfg.komorebi-ws-anim == s.id;
+            clicked => { Shell.set-config("windows.komorebi.workspaceAnimation", "\"" + s.id + "\""); }
+        }
+    }
     SettingRow {
         last: true;
         title: "komorebi";

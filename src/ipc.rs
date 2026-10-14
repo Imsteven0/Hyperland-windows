@@ -4,6 +4,7 @@
 //!   caelestia toggle launcher|dashboard|utilities|session|sidebar|settings
 //!   caelestia dashboard 0|1|2|3   (overview, media, performance, weather)
 //!   caelestia launcher calc|emoji|clipboard
+//!   caelestia workspace 1..8|next|prev
 //!   caelestia reload
 //!   caelestia quit
 //!
@@ -19,7 +20,7 @@ use windows::{
     core::HSTRING,
 };
 
-pub const COMMANDS: [&str; 32] = [
+pub const COMMANDS: [&str; 42] = [
     "quit",
     "reload",
     "toggle:launcher",
@@ -58,6 +59,18 @@ pub const COMMANDS: [&str; 32] = [
     "launcher:calc",
     "launcher:emoji",
     "launcher:clipboard",
+    // `caelestia workspace <n>|next|prev` (like `hyprctl dispatch workspace`),
+    // with the same transition as Alt+1..8.
+    "workspace:1",
+    "workspace:2",
+    "workspace:3",
+    "workspace:4",
+    "workspace:5",
+    "workspace:6",
+    "workspace:7",
+    "workspace:8",
+    "workspace:next",
+    "workspace:prev",
 ];
 
 /// Optional instance suffix (`CAELESTIA_INSTANCE`) so a dev build can run

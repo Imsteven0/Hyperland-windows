@@ -119,6 +119,7 @@ caelestia launcher calc|emoji|clipboard
 caelestia dashboard 0|1|2|3        (overview, media, performance, weather)
 caelestia settings 0..9            (open a Settings page)
 caelestia picker scheme|variant|opacity
+caelestia workspace 1..8|next|prev (with komorebi: animated like Alt+1..8)
 caelestia reload | quit
 ```
 
@@ -133,6 +134,16 @@ or hotkey daemon.
    the **Install komorebi** button in Settings › Panels › Tiling.
 2. Turn on **Use komorebi for tiling** there. The bar then shows komorebi's
    workspaces per monitor.
+
+**Animations, as in Caelestia's Hyprland config.** Windows glide into place
+inside a workspace with komorebi's movement animations (Caelestia's
+`windowsMove`: 600 ms on the Material *standard* curve). komorebi itself
+switches workspaces instantly, so the shell plays the switch: Hyprland's
+`workspaces` slide (500 ms, same curve), drawn with live DWM thumbnails of the
+windows over your real desktop, under the bar and frame. Pick **Slide**,
+**Vertical**, **Fade** or **Off** in Settings › Panels › Tiling
+(`windows.komorebi.workspaceAnimation`). Both follow the animation speed and
+pause in performance mode.
 
 | Shortcut | Action |
 |----------|--------|

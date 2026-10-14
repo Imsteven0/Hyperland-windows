@@ -86,6 +86,7 @@ impl Caelestia {
             komorebi_gap_outer: cfg.f32("windows.komorebi.workspacePadding"),
             komorebi_border_width: cfg.f32("windows.komorebi.borderWidth"),
             komorebi_animations: cfg.bool("windows.komorebi.animations"),
+            komorebi_ws_anim: cfg.str("windows.komorebi.workspaceAnimation").into(),
             language: cfg.str("general.language").into(),
             border_thickness: cfg.f32("border.thickness"),
             border_rounding: cfg.f32("border.rounding"),

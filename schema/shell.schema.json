@@ -618,8 +618,14 @@
             },
             "animations": {
               "type": "boolean",
-              "description": "komorebi movement animations.",
+              "description": "komorebi movement animations: windows glide into place inside a workspace (Caelestia's windowsMove: 600 ms, standard curve, scaled by appearance.anim.durations.scale).",
               "default": true
+            },
+            "workspaceAnimation": {
+              "type": "string",
+              "enum": ["slide", "slidevert", "fade", "none"],
+              "description": "Workspace switch animation played by the shell (komorebi switches instantly): Hyprland's slide (Caelestia's default, 500 ms), vertical slide, cross-fade, or none.",
+              "default": "slide"
             },
             "layeredApps": {
               "type": "array",

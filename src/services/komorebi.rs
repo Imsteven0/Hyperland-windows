@@ -242,7 +242,9 @@ fn merge_visuals(old_text: &str, v: &Visuals, app_specific: Option<&std::path::P
     obj.insert("border_colours".into(), Value::Object(colours));
     // A komorebi `theme` would override border_colours; the shell owns colours now.
     obj.remove("theme");
-    obj.insert("animation".into(), json!({ "enabled": v.animations, "duration": v.animation_ms, "style": "EaseOutCubic", "fps": 60 }));
+    // Caelestia's `standard` curve (Material 3), as a komorebi CubicBezier.
+    let curve = crate::services::workspace_anim::STANDARD;
+    obj.insert("animation".into(), json!({ "enabled": v.animations, "duration": v.animation_ms, "style": { "CubicBezier": curve }, "fps": 60 }));
     // Our surfaces are UI, never tiles (also enforced at runtime via ignore-rule).
     let rule = json!({ "kind": "Exe", "id": "caelestia.exe", "matching_strategy": "Equals" });
     let rules = obj.entry("ignore_rules").or_insert_with(|| json!([]));

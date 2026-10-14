@@ -25,6 +25,13 @@ impl Caelestia {
             self.push_komorebi_theme();
             komorebi::start();
         }
+        // Slide between workspaces (komorebi itself switches instantly).
+        let previous = self.st.borrow().komorebi.clone();
+        if let (KStatus::Running(old), KStatus::Running(new)) = (&previous, &status) {
+            if enabled {
+                self.ws_anim_on_state(old, new);
+            }
+        }
         let running = matches!(status, KStatus::Running(_));
         let state = match &status {
             KStatus::Running(s) => Some(s.clone()),
@@ -136,6 +143,7 @@ impl Caelestia {
             (m.focused as i64 + arg.parse::<i64>().unwrap_or(1)).rem_euclid(count)
         };
         if target >= 0 && target < count {
+            self.ws_anim_before_focus(&state, km, target as usize);
             komorebi::command(&["focus-monitor-workspace", &km.to_string(), &target.to_string()]);
         }
     }
@@ -163,7 +171,8 @@ impl Caelestia {
                 ("unfocused", hex(p.outline_variant)),
             ],
             animations: cfg.bool("windows.komorebi.animations"),
-            animation_ms: (250.0 * cfg.f64("appearance.anim.durations.scale").max(0.1)).round() as i64,
+            // Caelestia's `windowsMove` (speed 6), scaled like every shell animation.
+            animation_ms: (crate::services::workspace_anim::MOVE_DURATION_MS as f64 * cfg.f64("appearance.anim.durations.scale").max(0.1)).round() as i64,
             workspaces: cfg.i64("bar.workspaces.shown").clamp(1, 10) as usize,
             // Real monitor count (screens may not be enumerated yet at startup).
             monitors: win::monitors().len(),
