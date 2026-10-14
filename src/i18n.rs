@@ -54,6 +54,8 @@ fn es(s: &str) -> Option<&'static str> {
         "Variant" => "Variante",
         "Pick the dynamic scheme variant (live preview)" => "Elige la variante del esquema dinámico (vista previa en vivo)",
         "Transparency" => "Transparencia",
+        "Confetti" => "Confeti",
+        "Celebrate with confetti on screen" => "Celebra con confeti en la pantalla",
         "Pick the panel opacity theme (live preview)" => "Elige el tema de opacidad de los paneles (vista previa en vivo)",
         "Scheme" => "Esquema",
         "Pick a colour scheme (live preview)" => "Elige un esquema de color (vista previa en vivo)",

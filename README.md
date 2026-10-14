@@ -29,7 +29,7 @@ dots can be shared between Linux and Windows.
 - **Dashboard**: weather, calendar, media controls with cover art, CPU/GPU/RAM/disk
   and network graphs, plus your own plugin widgets.
 - **Launcher** (`Alt+Space`, or the Windows key): fuzzy app search and
-  - `>` actions (wallpaper, schemes with live preview, light/dark, power…),
+  - `>` actions (wallpaper, schemes with live preview, light/dark, confetti, power…),
   - `=` calculator (`=sqrt(16)*pi`, `=90deg`, decimal comma or point),
   - `:` emoji picker in English or Spanish (`:fire`, `:fuego`),
   - `;` clipboard history (memory only; password managers are skipped).
@@ -121,6 +121,7 @@ caelestia dashboard 0|1|2|3        (overview, media, performance, weather)
 caelestia settings 0..9            (open a Settings page)
 caelestia picker scheme|variant|opacity
 caelestia workspace 1..8|next|prev (with komorebi: animated like Alt+1..8)
+caelestia confetti                 (a burst in your colour scheme, clicks go through)
 caelestia reload | quit
 ```
 

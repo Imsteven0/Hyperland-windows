@@ -5,6 +5,7 @@
 //!   caelestia dashboard 0|1|2|3   (overview, media, performance, weather)
 //!   caelestia launcher calc|emoji|clipboard
 //!   caelestia workspace 1..8|next|prev
+//!   caelestia confetti
 //!   caelestia reload
 //!   caelestia quit
 //!
@@ -20,7 +21,7 @@ use windows::{
     core::HSTRING,
 };
 
-pub const COMMANDS: [&str; 42] = [
+pub const COMMANDS: [&str; 43] = [
     "quit",
     "reload",
     "toggle:launcher",
@@ -71,6 +72,8 @@ pub const COMMANDS: [&str; 42] = [
     "workspace:8",
     "workspace:next",
     "workspace:prev",
+    // `caelestia confetti`: a burst over the screen under the pointer.
+    "confetti",
 ];
 
 /// Optional instance suffix (`CAELESTIA_INSTANCE`) so a dev build can run

@@ -9,6 +9,7 @@ impl Caelestia {
                 let _ = slint::quit_event_loop();
             }
             "reload" => self.action("reload-config", ""),
+            "confetti" => self.play_confetti(),
             other => {
                 if let Some(target) = other.strip_prefix("toggle:") {
                     self.action("toggle", target);

@@ -26,7 +26,7 @@ que los dots se pueden compartir entre Linux y Windows.
 - **Panel**: clima, calendario, multimedia con carátula, CPU/GPU/RAM/disco/red y
   tus propios widgets de plugins.
 - **Lanzador** (`Alt+Espacio` o la tecla Windows): búsqueda de apps y
-  - `>` acciones (fondo, esquemas con vista previa, claro/oscuro, energía…),
+  - `>` acciones (fondo, esquemas con vista previa, claro/oscuro, confeti, energía…),
   - `=` calculadora (`=raiz(16)*pi`, `=90deg`, con coma o punto decimal),
   - `:` emojis en español o inglés (`:fuego`, `:fire`),
   - `;` historial del portapapeles (solo en memoria; ignora los gestores de contraseñas).
@@ -102,7 +102,7 @@ para cerrar y `Mayús+Supr` para borrar una entrada del portapapeles. Todos los
 atajos se cambian en `windows.shortcuts`.
 
 Desde una terminal: `caelestia toggle launcher|dashboard|utilities|session|sidebar|settings`,
-`caelestia launcher calc|emoji|clipboard`, `caelestia workspace 1..8|next|prev`
+`caelestia launcher calc|emoji|clipboard`, `caelestia confetti`, `caelestia workspace 1..8|next|prev`
 (con komorebi, animado como `Alt+1..8`), `caelestia reload`, `caelestia quit`.
 
 ## Mosaico con komorebi

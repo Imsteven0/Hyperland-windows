@@ -278,6 +278,7 @@ impl Caelestia {
             "emoji" => return self.open_launcher_mode(LauncherMode::Emoji),
             "clipboard" => return self.open_launcher_mode(LauncherMode::Clipboard),
             "reload" => self.action("reload-config", ""),
+            "confetti" => self.play_confetti(),
             "lock" | "sleep" | "logout" | "reboot" | "shutdown" => {
                 self.close(Drawer::Launcher);
                 return system::session(a.id);

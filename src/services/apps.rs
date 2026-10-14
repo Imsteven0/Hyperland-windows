@@ -40,6 +40,7 @@ pub const ACTIONS: &[Action] = &[
     Action { id: "scheme", name: "Scheme", description: "Pick a colour scheme (live preview)", icon: "palette", dangerous: false },
     Action { id: "variant", name: "Variant", description: "Pick the dynamic scheme variant (live preview)", icon: "colors", dangerous: false },
     Action { id: "transparency", name: "Transparency", description: "Pick the panel opacity theme (live preview)", icon: "opacity", dangerous: false },
+    Action { id: "confetti", name: "Confetti", description: "Celebrate with confetti on screen", icon: "celebration", dangerous: false },
     Action { id: "calc", name: "Calculator", description: "Evaluate maths as you type (=2+2)", icon: "calculate", dangerous: false },
     Action { id: "emoji", name: "Emoji", description: "Search and copy an emoji (:fire)", icon: "mood", dangerous: false },
     Action { id: "clipboard", name: "Clipboard", description: "Paste from the clipboard history (;)", icon: "content_paste", dangerous: false },

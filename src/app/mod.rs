@@ -68,6 +68,7 @@ macro_rules! each_window {
 // One file per area; each adds methods to `Caelestia` (children see its private fields).
 mod actions;
 mod config;
+mod confetti;
 mod dots;
 mod drawers;
 mod helpers;
@@ -286,6 +287,8 @@ pub struct Caelestia {
     utilities: UtilitiesWindow,
     session: SessionWindow,
     sidebar: SidebarWindow,
+    /// Confetti overlay, created on first use.
+    confetti: RefCell<Option<crate::ConfettiWindow>>,
     settings: SettingsWindow,
     st: RefCell<State>,
     svc: RefCell<Option<Services>>,
@@ -360,6 +363,7 @@ impl Caelestia {
             utilities: UtilitiesWindow::new().expect("utilities window"),
             session: SessionWindow::new().expect("session window"),
             sidebar: SidebarWindow::new().expect("sidebar window"),
+            confetti: RefCell::new(None),
             settings: SettingsWindow::new().expect("settings window"),
             st: RefCell::new(State {
                 komorebi: KStatus::Stopped,

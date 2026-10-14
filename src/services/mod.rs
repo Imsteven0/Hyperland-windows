@@ -3,6 +3,7 @@
 pub mod apps;
 pub mod calc;
 pub mod clipboard;
+pub mod confetti;
 pub mod connectivity;
 pub mod dots_repo;
 pub mod emoji;

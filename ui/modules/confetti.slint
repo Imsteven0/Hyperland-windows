@@ -1,0 +1,76 @@
+// "Confetti" from the launcher: a click-through overlay where two cannons in
+// the bottom corners fire towards the middle. Each piece's position is a
+// closed-form function of time (launch velocity relaxing under air drag
+// towards a slow fall, plus flutter), so the whole burst runs off one clock
+// and costs nothing while idle. Pieces come from `services::confetti`.
+
+export struct ConfettiPiece {
+    x: length,
+    y: length,
+    // Launch velocity, per second (y grows downwards).
+    vx: length,
+    vy: length,
+    w: length,
+    h: length,
+    round: bool,
+    tint: color,
+    // Degrees per second.
+    spin: float,
+    // Tumbles per second.
+    flip: float,
+    sway: length,
+    // Degrees.
+    phase: float,
+    delay: float,
+    life: float,
+}
+
+export component ConfettiWindow inherits Window {
+    title: "caelestia-confetti";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in property <[ConfettiPiece]> pieces;
+    // Seconds until `done` (see confetti::DURATION_S).
+    in property <float> seconds: 5;
+    // Air drag in 1/s (confetti::DRAG) and the falling speed it tends to.
+    in property <float> drag: 2;
+    in property <length> terminal: 150px;
+    callback done();
+
+    property <bool> running;
+    property <duration> started;
+    // Seconds since play(); reading animation-tick() keeps frames coming
+    // only while running.
+    property <float> t: root.running ? (animation-tick() - root.started) / 1s : 0;
+
+    public function play() {
+        root.started = animation-tick();
+        root.running = true;
+    }
+
+    Timer {
+        interval: root.seconds * 1s;
+        running: root.running;
+        triggered => {
+            root.running = false;
+            root.done();
+        }
+    }
+
+    for p in root.pieces: Rectangle {
+        property <float> age: max(0, root.t - p.delay);
+        // Distance factor of a velocity decaying as e^(-drag·age).
+        property <float> travel: (1 - Math.pow(2.71828, -root.drag * self.age)) / root.drag;
+        visible: root.running && root.t >= p.delay && self.age < p.life;
+        width: p.w * max(0.15, Math.abs(Math.cos((p.phase + self.age * p.flip * 360) * 1deg)));
+        height: p.h;
+        x: p.x + p.vx * self.travel + p.sway * Math.sin((p.phase + self.age * 160) * 1deg) - self.width / 2;
+        y: p.y + (p.vy - root.terminal) * self.travel + root.terminal * self.age - self.height / 2;
+        border-radius: p.round ? self.height / 2 : 1px;
+        background: p.tint;
+        opacity: clamp((p.life - self.age) / 0.6, 0, 1);
+        transform-rotation: (p.phase + p.spin * self.age) * 1deg;
+    }
+}
