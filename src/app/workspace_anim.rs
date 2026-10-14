@@ -50,10 +50,18 @@ pub(super) struct WsTransition {
 
 impl Caelestia {
     /// Style and length, or `None` when the animation is off (setting,
-    /// performance mode, animation speed 0).
+    /// animation speed 0, performance mode forced or on battery).
+    /// Performance mode for a full-screen app doesn't count: switching
+    /// workspaces is how you leave (or return to) that video or game, and
+    /// Hyprland animates it too. Its 2 s re-check made switches go flat
+    /// for a while after leaving a full-screen video.
     fn ws_anim_settings(&self) -> Option<(Style, Duration)> {
         let style = Style::parse(&self.cfg.borrow().str("windows.komorebi.workspaceAnimation"))?;
-        Some((style, wsa::duration(self.anim_scale())?))
+        let scale = match self.perf_reason() {
+            Some(PerfReason::Fullscreen) => self.cfg.borrow().f32("appearance.anim.durations.scale"),
+            _ => self.anim_scale(),
+        };
+        Some((style, wsa::duration(scale)?))
     }
 
     /// Before running a komorebic command: stage the transition if it is
@@ -112,11 +120,16 @@ impl Caelestia {
 
     /// Ends any transition now (the real windows are in place underneath).
     pub(super) fn ws_anim_stop(&self) {
-        if let Some(cancel) = self.st.borrow_mut().ws_anim.take().and_then(|t| t.cancel) {
+        let ended = self.st.borrow_mut().ws_anim.take();
+        if let Some(cancel) = ended.as_ref().and_then(|t| t.cancel.as_ref()) {
             cancel.store(true, Ordering::Relaxed);
         }
         if let Some(stage) = self.ws_stage.borrow_mut().as_mut() {
             stage.release();
+        }
+        if ended.is_some() {
+            // Arriving at a full-screen video hides the bar at once.
+            self.refresh_fullscreen();
         }
     }
 

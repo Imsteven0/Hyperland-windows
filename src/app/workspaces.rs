@@ -29,6 +29,11 @@ impl Caelestia {
         let previous = self.st.borrow().komorebi.clone();
         if enabled && let (KStatus::Running(old), KStatus::Running(new)) = (&previous, &status) {
             self.ws_anim_on_state(old, new);
+            // What's in front changed: blur and effects follow right away
+            // (performance mode otherwise re-checks every 2 s).
+            if old.monitors.iter().zip(&new.monitors).any(|(a, b)| a.focused != b.focused) {
+                self.refresh_perf();
+            }
         }
         let running = matches!(status, KStatus::Running(_));
         let state = match &status {
