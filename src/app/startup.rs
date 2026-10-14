@@ -32,6 +32,29 @@ impl Caelestia {
 
     /// (Re)creates one bar + frame per monitor whenever the monitor layout
     /// changes (hot-plug, resolution, DPI, taskbar moves). Polled cheaply.
+    /// Like Hyprland, a full-screen window (a video, a game) covers the bar
+    /// and frame of its monitor; they come back when it leaves full screen
+    /// or another window comes on top.
+    pub(super) fn refresh_fullscreen(&self) {
+        let rects: Vec<Rect> = self.screens.borrow().iter().map(|s| s.monitor.rect).collect();
+        if rects.is_empty() {
+            return;
+        }
+        let covered = win::fullscreen_monitors(&rects);
+        for (s, covered) in self.screens.borrow_mut().iter_mut().zip(covered) {
+            if s.covered == covered || !s.styled {
+                continue;
+            }
+            s.covered = covered;
+            log::info!("{} {} full-screen app", s.monitor.name, if covered { "covered by a" } else { "no longer covered by a" });
+            for w in [s.border.window(), s.bar.window()] {
+                if let Some(h) = win::hwnd_of(w) {
+                    win::set_shown(h, !covered);
+                }
+            }
+        }
+    }
+
     pub(super) fn sync_screens(&self) {
         let excluded = self.cfg.borrow().str_list("bar.excludedScreens");
         let wanted: Vec<(Monitor, Rect)> = win::monitors()
@@ -63,7 +86,7 @@ impl Caelestia {
             let (Ok(bar), Ok(border)) = (BarWindow::new(), BorderWindow::new()) else { continue };
             self.wire_global_for(bar.global::<ShellGlobal>(), Some(idx));
             self.wire_global(border.global::<ShellGlobal>());
-            screens.push(Screen { monitor, area, bar, border, appbars: Vec::new(), styled: false });
+            screens.push(Screen { monitor, area, bar, border, appbars: Vec::new(), styled: false, covered: false });
         }
         *self.screens.borrow_mut() = screens;
 
@@ -351,6 +374,7 @@ impl Caelestia {
             }
         }));
         timers.push(every(2_000, Caelestia::refresh_perf));
+        timers.push(every(250, Caelestia::refresh_fullscreen));
     }
 
     pub(super) fn start_watcher(&self) {

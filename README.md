@@ -25,6 +25,7 @@ dots can be shared between Linux and Windows.
 - **Bar** on every monitor: workspaces with their app icons (Windows virtual
   desktops, or komorebi workspaces), active window, clock, status icons with
   popouts (audio, network, Bluetooth, battery, calendar) and a notification bell.
+  Like on Hyprland, a full-screen video or game covers the bar and frame of its monitor.
 - **Dashboard**: weather, calendar, media controls with cover art, CPU/GPU/RAM/disk
   and network graphs, plus your own plugin widgets.
 - **Launcher** (`Alt+Space`, or the Windows key): fuzzy app search and

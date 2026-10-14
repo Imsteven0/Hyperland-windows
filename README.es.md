@@ -21,7 +21,8 @@ que los dots se pueden compartir entre Linux y Windows.
 
 - **Barra** en cada monitor: espacios de trabajo con los iconos de sus apps
   (escritorios virtuales de Windows o espacios de komorebi), ventana activa, reloj,
-  iconos de estado con ventanas emergentes y campana de notificaciones.
+  iconos de estado con ventanas emergentes y campana de notificaciones. Como en
+  Hyprland, un video o juego en pantalla completa tapa la barra y el marco de su monitor.
 - **Panel**: clima, calendario, multimedia con carátula, CPU/GPU/RAM/disco/red y
   tus propios widgets de plugins.
 - **Lanzador** (`Alt+Espacio` o la tecla Windows): búsqueda de apps y

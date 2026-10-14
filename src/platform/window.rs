@@ -358,6 +358,90 @@ fn covers(win: Rect, mon: Rect) -> bool {
     win.left <= mon.left && win.top <= mon.top && win.right >= mon.right && win.bottom >= mon.bottom
 }
 
+fn intersects(a: Rect, b: Rect) -> bool {
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+}
+
+/// A top-level app window as the full-screen check sees it.
+#[derive(Debug, Clone, Copy)]
+struct Stacked {
+    rect: Rect,
+    topmost: bool,
+    /// Maximised windows overhang the monitor by their invisible borders.
+    zoomed: bool,
+}
+
+/// For each monitor: is the app window on top of it full screen? `stack` is
+/// in z-order, top first. Small always-on-top windows (picture-in-picture,
+/// mini players) don't count: the video under them is still full screen.
+fn fullscreen_per_monitor(stack: &[Stacked], monitors: &[Rect]) -> Vec<bool> {
+    monitors
+        .iter()
+        .map(|&m| {
+            stack
+                .iter()
+                .find(|w| intersects(w.rect, m) && !(w.topmost && !covers(w.rect, m)))
+                .is_some_and(|w| covers(w.rect, m) && !w.zoomed)
+        })
+        .collect()
+}
+
+/// Which `monitors` show a full-screen app on top (a video, a game), like
+/// Hyprland's fullscreen windows, which cover the bar. Independent of focus:
+/// clicking another monitor leaves the video full screen.
+pub fn fullscreen_monitors(monitors: &[Rect]) -> Vec<bool> {
+    use windows::Win32::{
+        Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute},
+        UI::WindowsAndMessaging::{EnumWindows, GWL_EXSTYLE, GetClassNameW, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT},
+    };
+    unsafe extern "system" fn each(hwnd: HWND, l: LPARAM) -> BOOL {
+        let stack = unsafe { &mut *(l.0 as *mut Vec<Stacked>) };
+        unsafe {
+            if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
+                return true.into();
+            }
+            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+            // Tool windows, overlays and click-through layers aren't apps.
+            if ex & (WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0 | WS_EX_TRANSPARENT.0) != 0 {
+                return true.into();
+            }
+            let mut pid = 0u32;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            if pid == std::process::id() {
+                return true.into();
+            }
+            let mut cloaked = 0u32;
+            let _ = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, (&mut cloaked as *mut u32).cast(), 4);
+            if cloaked != 0 {
+                return true.into();
+            }
+            let mut class = [0u16; 32];
+            let n = GetClassNameW(hwnd, &mut class) as usize;
+            if matches!(String::from_utf16_lossy(&class[..n]).as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
+                return true.into();
+            }
+            let mut r = RECT::default();
+            if GetWindowRect(hwnd, &mut r).is_ok() {
+                stack.push(Stacked { rect: r.into(), topmost: ex & WS_EX_TOPMOST.0 != 0, zoomed: IsZoomed(hwnd).as_bool() });
+            }
+        }
+        true.into()
+    }
+    let mut stack: Vec<Stacked> = Vec::new();
+    unsafe {
+        let _ = EnumWindows(Some(each), LPARAM(&mut stack as *mut _ as isize));
+    }
+    fullscreen_per_monitor(&stack, monitors)
+}
+
+/// Shows or hides a window without activating it or telling its toolkit.
+pub fn set_shown(hwnd: HWND, shown: bool) {
+    use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOWNA, ShowWindow};
+    unsafe {
+        let _ = ShowWindow(hwnd, if shown { SW_SHOWNA } else { SW_HIDE });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Monitor {
     /// GDI device name, e.g. `\.\DISPLAY2` (used by `bar.excludedScreens`).
@@ -598,5 +682,45 @@ mod tests {
         assert_eq!((r.width(), r.height()), (100, 50));
         assert!(r.contains(10, 20) && !r.contains(110, 70));
         assert_eq!(r.inflate(5), Rect { left: 5, top: 15, right: 115, bottom: 75 });
+    }
+}
+
+#[cfg(test)]
+mod fullscreen_tests {
+    use super::*;
+
+    const MON_A: Rect = Rect { left: 0, top: 0, right: 2560, bottom: 1440 };
+    const MON_B: Rect = Rect { left: 2560, top: 0, right: 5120, bottom: 1440 };
+
+    fn win(left: i32, top: i32, right: i32, bottom: i32) -> Stacked {
+        Stacked { rect: Rect { left, top, right, bottom }, topmost: false, zoomed: false }
+    }
+
+    #[test]
+    fn video_full_screen_on_one_monitor() {
+        // A full-screen video on A, a tiled window on B, more below.
+        let stack = [win(0, 0, 2560, 1440), win(2614, 11, 3855, 1429), win(54, 11, 2549, 1429)];
+        assert_eq!(fullscreen_per_monitor(&stack, &[MON_A, MON_B]), [true, false]);
+    }
+
+    #[test]
+    fn a_window_above_the_video_shows_the_bar_again() {
+        let stack = [win(100, 100, 900, 700), win(0, 0, 2560, 1440)];
+        assert_eq!(fullscreen_per_monitor(&stack, &[MON_A]), [false]);
+    }
+
+    #[test]
+    fn picture_in_picture_does_not_count() {
+        let pip = Stacked { topmost: true, ..win(2000, 1100, 2500, 1400) };
+        let stack = [pip, win(0, 0, 2560, 1440)];
+        assert_eq!(fullscreen_per_monitor(&stack, &[MON_A]), [true]);
+    }
+
+    #[test]
+    fn maximised_windows_are_not_full_screen() {
+        // Maximised without an AppBar: overhangs by the invisible borders.
+        let stack = [Stacked { zoomed: true, ..win(-8, -8, 2568, 1448) }];
+        assert_eq!(fullscreen_per_monitor(&stack, &[MON_A]), [false]);
+        assert_eq!(fullscreen_per_monitor(&[], &[MON_A]), [false], "empty desktop");
     }
 }

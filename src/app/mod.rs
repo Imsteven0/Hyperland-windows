@@ -148,6 +148,8 @@ struct Screen {
     border: BorderWindow,
     appbars: Vec<AppBar>,
     styled: bool,
+    /// A full-screen app covers this monitor: bar and frame are hidden.
+    covered: bool,
 }
 
 struct AppItem {
