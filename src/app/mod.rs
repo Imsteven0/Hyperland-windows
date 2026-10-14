@@ -178,7 +178,7 @@ enum LauncherTarget {
 struct State {
     komorebi: KStatus,
     /// Last border colours pushed to komorebi (avoid re-sending on every apply).
-    komorebi_colours: String,
+    komorebi_visuals: Option<komorebi::Visuals>,
     komorebi_autostarted: bool,
     drawers: [DrawerState; 5],
     popout: PopoutState,
@@ -354,7 +354,7 @@ impl Caelestia {
             settings: SettingsWindow::new().expect("settings window"),
             st: RefCell::new(State {
                 komorebi: KStatus::Stopped,
-                komorebi_colours: String::new(),
+                komorebi_visuals: None,
                 komorebi_autostarted: false,
                 drawers: Default::default(),
                 popout: PopoutState::default(),

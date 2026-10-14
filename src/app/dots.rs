@@ -112,7 +112,7 @@ impl Caelestia {
         match result {
             Ok(()) => {
                 log::info!("applied dots from {}/{}", p.repo.owner, p.repo.name);
-                self.st.borrow_mut().komorebi_colours.clear();
+                self.st.borrow_mut().komorebi_visuals = None;
                 self.apply_config();
                 self.set_dots_status("applied", &format!("{} · {}/{}", tr("Applied"), p.repo.owner, p.repo.name));
                 if with_wallpapers {
@@ -144,7 +144,7 @@ impl Caelestia {
         })();
         match result {
             Ok(()) => {
-                self.st.borrow_mut().komorebi_colours.clear();
+                self.st.borrow_mut().komorebi_visuals = None;
                 self.apply_config();
                 self.set_dots_status("idle", &tr("Previous dots restored"));
             }

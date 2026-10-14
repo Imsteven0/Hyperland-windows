@@ -145,7 +145,7 @@ impl Caelestia {
                 }
             }
             "komorebi-start" => {
-                    self.st.borrow_mut().komorebi_colours.clear();
+                    self.st.borrow_mut().komorebi_visuals = None;
                 self.push_komorebi_theme();
                 komorebi::start();
             }

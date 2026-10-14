@@ -199,7 +199,7 @@ impl Caelestia {
             let on = self.cfg.borrow().bool("windows.komorebi.enabled");
             let status = self.st.borrow().komorebi.clone();
             self.st.borrow_mut().desktops = Desktops::default();
-            self.st.borrow_mut().komorebi_colours.clear();
+            self.st.borrow_mut().komorebi_visuals = None;
             match status {
                 KStatus::Stopped if on => {
                     self.push_komorebi_theme();

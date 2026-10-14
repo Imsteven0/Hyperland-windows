@@ -27,10 +27,8 @@ impl Caelestia {
         }
         // Slide between workspaces (komorebi itself switches instantly).
         let previous = self.st.borrow().komorebi.clone();
-        if let (KStatus::Running(old), KStatus::Running(new)) = (&previous, &status) {
-            if enabled {
-                self.ws_anim_on_state(old, new);
-            }
+        if enabled && let (KStatus::Running(old), KStatus::Running(new)) = (&previous, &status) {
+            self.ws_anim_on_state(old, new);
         }
         let running = matches!(status, KStatus::Running(_));
         let state = match &status {
@@ -41,7 +39,7 @@ impl Caelestia {
         if running != was_running {
             // Switch the bar between komorebi and virtual-desktop workspaces.
             self.st.borrow_mut().desktops = Desktops::default();
-            self.st.borrow_mut().komorebi_colours.clear();
+            self.st.borrow_mut().komorebi_visuals = None;
             self.bind_hotkeys();
             if !running {
                 self.refresh_workspaces();
@@ -179,25 +177,27 @@ impl Caelestia {
             layered_apps: cfg.str_list("windows.komorebi.layeredApps"),
         };
         drop(cfg);
-        let key = format!("{visuals:?}");
-        if self.st.borrow().komorebi_colours == key {
+        // What komorebi already has (`None` after it (re)started: unknown).
+        let previous = self.st.borrow().komorebi_visuals.clone();
+        if previous.as_ref() == Some(&visuals) {
             return;
         }
-        match komorebi::sync_config(&visuals) {
-            Ok(synced) => {
-                self.st.borrow_mut().komorebi_colours = key;
-                if matches!(self.st.borrow().komorebi, KStatus::Running(_)) {
-                    if synced.structure {
-                        log::info!("komorebi.json updated from the dots, reloading komorebi");
-                        komorebi::reload_config();
-                    } else if synced.colours {
-                        // Wallpaper/scheme changes: recolour live, keep the layout.
-                        komorebi::apply_colours(&visuals.colours);
-                    }
-                }
-            }
-            Err(e) => log::warn!("could not update komorebi.json: {e:#}"),
+        // komorebi.json keeps the values for komorebi's next start.
+        let synced = match komorebi::sync_config(&visuals) {
+            Ok(synced) => synced,
+            Err(e) => return log::warn!("could not update komorebi.json: {e:#}"),
+        };
+        self.st.borrow_mut().komorebi_visuals = Some(visuals.clone());
+        let KStatus::Running(state) = self.st.borrow().komorebi.clone() else { return };
+        // Rules and generated workspaces only load with the whole
+        // configuration, which re-lays out every window: only when needed.
+        if synced.structure {
+            log::info!("komorebi.json rules or workspaces changed, reloading komorebi");
+            komorebi::reload_config();
         }
+        // Gaps, borders, animations and colours apply live, keeping the layout.
+        let counts: Vec<usize> = state.monitors.iter().map(|m| m.workspaces.len()).collect();
+        komorebi::run_in_order(komorebi::live_commands(previous.as_ref(), &visuals, &counts));
     }
 
     pub(super) fn refresh_workspaces(&self) {

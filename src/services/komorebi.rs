@@ -195,11 +195,15 @@ pub struct Visuals {
 /// What `sync_config` changed in `komorebi.json`.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Synced {
-    /// Only applied by a full `replace-configuration` (which re-lays out windows).
+    /// Only applied by a full `replace-configuration` (which re-lays out
+    /// windows): rules, generated workspaces, border style, animation curve.
     pub structure: bool,
     /// Border colours: applied live with `border-colour`, no reload.
     pub colours: bool,
 }
+
+/// Keys `live_commands` can change without a reload.
+const LIVE_KEYS: [&str; 6] = ["border_colours", "default_workspace_padding", "default_container_padding", "border", "border_width", "border_offset"];
 
 /// Merges our managed keys into `komorebi.json`, keeping everything else the
 /// user configured.
@@ -302,34 +306,113 @@ fn merge_visuals(old_text: &str, v: &Visuals, app_specific: Option<&std::path::P
     if new_text == old_text {
         return Ok((new_text, Synced::default()));
     }
-    let without_colours = |v: &Value| {
+    let without_live = |v: &Value| {
         let mut v = v.clone();
         if let Some(o) = v.as_object_mut() {
-            o.remove("border_colours");
+            for k in LIVE_KEYS {
+                o.remove(k);
+            }
+            if let Some(a) = o.get_mut("animation").and_then(Value::as_object_mut) {
+                a.remove("enabled");
+                a.remove("duration");
+            }
         }
         v
     };
     let synced = Synced {
-        structure: old_text.trim().is_empty() || without_colours(&old) != without_colours(&cfg),
+        structure: old_text.trim().is_empty() || without_live(&old) != without_live(&cfg),
         colours: old.get("border_colours") != cfg.get("border_colours"),
     };
     Ok((new_text, synced))
 }
 
-/// Applies border colours to a running komorebi without reloading its
-/// configuration (a reload would re-lay out every workspace).
-pub fn apply_colours(colours: &[(&'static str, String)]) {
-    for (kind, hex) in colours {
-        let Some(rgb) = hex.strip_prefix('#').and_then(|h| u32::from_str_radix(h, 16).ok()) else { continue };
-        let (r, g, b) = ((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff);
-        command(&["border-colour", "-w", kind, &r.to_string(), &g.to_string(), &b.to_string()]);
+fn colour_commands(colours: &[(&'static str, String)]) -> Vec<Vec<String>> {
+    colours
+        .iter()
+        .filter_map(|(kind, hex)| {
+            let rgb = hex.strip_prefix('#').and_then(|h| u32::from_str_radix(h, 16).ok())?;
+            let (r, g, b) = ((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff);
+            Some(["border-colour", "-w", kind, &r.to_string(), &g.to_string(), &b.to_string()].map(String::from).to_vec())
+        })
+        .collect()
+}
+
+/// komorebic commands that bring a running komorebi from `old` to `new`
+/// without reloading its configuration; `old` = `None` sends everything.
+/// `workspaces[m]` is the workspace count of monitor `m`. komorebi stores
+/// paddings right away but only lays windows out again on `retile`.
+pub fn live_commands(old: Option<&Visuals>, new: &Visuals, workspaces: &[usize]) -> Vec<Vec<String>> {
+    let changed = |f: fn(&Visuals) -> String| old.is_none_or(|o| f(o) != f(new));
+    let on_off = |b: bool| if b { "enable" } else { "disable" }.to_owned();
+    let mut cmds: Vec<Vec<String>> = Vec::new();
+    let mut retile = false;
+    for (verb, value, size) in [
+        ("workspace-padding", changed(|v| v.workspace_padding.to_string()), new.workspace_padding),
+        ("container-padding", changed(|v| v.container_padding.to_string()), new.container_padding),
+    ] {
+        if value {
+            for (m, &count) in workspaces.iter().enumerate() {
+                cmds.extend((0..count).map(|w| vec![verb.to_owned(), m.to_string(), w.to_string(), size.max(0).to_string()]));
+            }
+            retile = true;
+        }
+    }
+    if changed(|v| v.borders.to_string()) {
+        cmds.push(vec!["border".into(), on_off(new.borders)]);
+    }
+    if changed(|v| v.border_width.to_string()) {
+        cmds.push(vec!["border-width".into(), new.border_width.max(0).to_string()]);
+    }
+    if changed(|v| v.border_offset.to_string()) {
+        cmds.push(vec!["border-offset".into(), new.border_offset.to_string()]);
+    }
+    if changed(|v| v.animations.to_string()) {
+        cmds.push(vec!["animation".into(), on_off(new.animations)]);
+    }
+    if changed(|v| v.animation_ms.to_string()) {
+        cmds.push(vec!["animation-duration".into(), new.animation_ms.max(0).to_string()]);
+    }
+    if changed(|v| format!("{:?}", v.colours)) {
+        cmds.extend(colour_commands(&new.colours));
+    }
+    if retile {
+        cmds.push(vec!["retile".into()]);
+    }
+    cmds
+}
+
+/// Runs komorebic commands one after another on a single worker, in the
+/// order queued (paddings must land before `retile`).
+pub fn run_in_order(cmds: Vec<Vec<String>>) {
+    use std::sync::OnceLock;
+    static QUEUE: OnceLock<crossbeam_channel::Sender<Vec<String>>> = OnceLock::new();
+    if cmds.is_empty() {
+        return;
+    }
+    let Some(exe) = komorebic() else { return };
+    let tx = QUEUE.get_or_init(|| {
+        let (tx, rx) = crossbeam_channel::unbounded::<Vec<String>>();
+        let spawned = thread::Builder::new().name("komorebic".into()).spawn(move || {
+            for args in rx {
+                if let Err(e) = komorebic_cmd(&exe).args(&args).stdout(Stdio::null()).stderr(Stdio::null()).status() {
+                    log::warn!("komorebic {args:?}: {e}");
+                }
+            }
+        });
+        if let Err(e) = spawned {
+            log::warn!("komorebic queue: {e}");
+        }
+        tx
+    });
+    for c in cmds {
+        let _ = tx.send(c);
     }
 }
 
 
 /// Applies a changed static config to a running komorebi.
 pub fn reload_config() {
-    command(&["replace-configuration", &config_path().display().to_string()]);
+    run_in_order(vec![vec!["replace-configuration".into(), config_path().display().to_string()]]);
 }
 
 pub fn stop() {
@@ -559,6 +642,38 @@ mod tests {
         serde_json::from_str(text).unwrap()
     }
 
+    fn joined(cmds: &[Vec<String>]) -> Vec<String> {
+        cmds.iter().map(|c| c.join(" ")).collect()
+    }
+
+    #[test]
+    fn padding_changes_apply_live_then_retile() {
+        let old = visuals();
+        let new = Visuals { container_padding: 4, ..visuals() };
+        assert_eq!(
+            joined(&live_commands(Some(&old), &new, &[2, 1])),
+            ["container-padding 0 0 4", "container-padding 0 1 4", "container-padding 1 0 4", "retile"]
+        );
+    }
+
+    #[test]
+    fn border_and_animation_changes_need_no_retile() {
+        let old = visuals();
+        let new = Visuals { border_width: 6, animations: false, animation_ms: 300, ..visuals() };
+        assert_eq!(joined(&live_commands(Some(&old), &new, &[5])), ["border-width 6", "animation disable", "animation-duration 300"]);
+        assert!(live_commands(Some(&old), &old, &[5]).is_empty(), "nothing changed, nothing sent");
+    }
+
+    #[test]
+    fn unknown_state_sends_everything() {
+        let all = joined(&live_commands(None, &visuals(), &[1]));
+        for expected in ["workspace-padding 0 0 10", "container-padding 0 0 10", "border enable", "border-width 3", "border-offset 0", "animation enable", "animation-duration 250", "border-colour -w single 181 196 255", "retile"] {
+            assert!(all.contains(&expected.to_owned()), "missing {expected} in {all:?}");
+        }
+        assert_eq!(all.last().map(String::as_str), Some("retile"));
+    }
+
+
     #[test]
     fn first_sync_writes_everything_and_is_structural() {
         let (text, synced) = merge_visuals("", &visuals(), None).unwrap();
@@ -591,12 +706,19 @@ mod tests {
         assert_eq!(synced, Synced { structure: false, colours: true });
     }
 
+    /// Gaps, borders and animation timing are sent live (`live_commands`).
     #[test]
-    fn layout_changes_are_structural() {
+    fn padding_and_border_changes_are_not_structural() {
         let (text, _) = merge_visuals("", &visuals(), None).unwrap();
-        let mut v = visuals();
-        v.container_padding = 20;
+        let v = Visuals { container_padding: 20, workspace_padding: 4, border_width: 6, animations: false, animation_ms: 900, ..visuals() };
         let (_, synced) = merge_visuals(&text, &v, None).unwrap();
+        assert_eq!(synced, Synced { structure: false, colours: false });
+    }
+
+    #[test]
+    fn workspace_layout_changes_are_structural() {
+        let (text, _) = merge_visuals("", &visuals(), None).unwrap();
+        let (_, synced) = merge_visuals(&text, &Visuals { monitors: 3, ..visuals() }, None).unwrap();
         assert_eq!(synced, Synced { structure: true, colours: false });
     }
 

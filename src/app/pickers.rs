@@ -161,7 +161,7 @@ impl Caelestia {
         if let Err(e) = result {
             log::error!("saving picker choice: {e:#}");
         }
-        self.st.borrow_mut().komorebi_colours.clear();
+        self.st.borrow_mut().komorebi_visuals = None;
         self.apply_config(); // also syncs komorebi borders now that the picker is done
         self.close(Drawer::Launcher);
     }
