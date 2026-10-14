@@ -286,16 +286,8 @@ impl Caelestia {
         if side_on {
             // The frame's top strip at the right end: the caption buttons of
             // windows sit below the frame, so reaching for them never opens it.
-            let corner = Rect { left: area.right - (160.0 * s) as i32, right: area.right, top: area.top, bottom: area.top + edge };
-            let in_corner = area.contains(x, y) && corner.contains(x, y);
-            let armed = self.st.borrow().sidebar_corner_armed;
-            if in_corner && armed && !drawers[Drawer::Sidebar as usize].open {
-                self.st.borrow_mut().sidebar_corner_armed = false;
-                // Opened on purpose: it stays while you read, until a click outside.
-                self.open(Drawer::Sidebar, false);
-            } else if !in_corner && !armed {
-                self.st.borrow_mut().sidebar_corner_armed = true;
-            }
+            // Like the dashboard, it closes once the pointer leaves it.
+            check(Drawer::Sidebar, Rect { left: area.right - (160.0 * s) as i32, right: area.right, top: area.top, bottom: area.top + edge });
         }
     }
 

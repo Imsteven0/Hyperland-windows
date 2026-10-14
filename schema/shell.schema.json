@@ -538,7 +538,7 @@
       "properties": {
         "showOnHover": {
           "type": "boolean",
-          "description": "Open it by touching the top-right corner of the screen frame; it stays open until you click outside it.",
+          "description": "Open it by touching the top-right corner of the screen frame; it closes when the pointer leaves it, like the dashboard.",
           "default": true
         }
       }

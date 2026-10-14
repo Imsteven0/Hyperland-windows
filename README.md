@@ -35,8 +35,8 @@ dots can be shared between Linux and Windows.
   - `:` emoji picker in English or Spanish (`:fire`, `:fuego`),
   - `;` clipboard history (memory only; password managers are skipped).
 - **Notification center**: what Windows keeps in its Action Center, grouped by
-  app, with Do Not Disturb. Opens from the bell or the top-right corner of the
-  frame and stays until you click outside it.
+  app, with Do Not Disturb. Opens from the bell (a click outside closes it) or
+  by touching the top-right corner of the frame (leaving it closes it).
 - **Utilities**: keep awake, screenshots, recordings, quick toggles, performance mode.
 - **Themes**: dynamic Material You schemes from the wallpaper (9 variants) or
   presets (Catppuccin, Gruvbox, Nord…), transparency and blur.

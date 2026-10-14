@@ -935,8 +935,8 @@ msgstr "Desvanecer"
 msgid "Open notifications from the top-right corner"
 msgstr "Abrir notificaciones desde la esquina superior derecha"
 
-msgid "Stays open until you click outside it"
-msgstr "Se queda abierto hasta que hagas clic fuera"
+msgid "Closes when the pointer leaves it, like the dashboard"
+msgstr "Se cierra al sacar el cursor, como el panel"
 
 msgid "Saved"
 msgstr "Guardada"

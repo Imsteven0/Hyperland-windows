@@ -32,8 +32,8 @@ que los dots se pueden compartir entre Linux y Windows.
   - `:` emojis en español o inglés (`:fuego`, `:fire`),
   - `;` historial del portapapeles (solo en memoria; ignora los gestores de contraseñas).
 - **Centro de notificaciones** con las notificaciones de Windows agrupadas por
-  app, y No molestar. Se abre con la campana o desde la esquina superior derecha
-  del marco, y se queda abierto hasta que haces clic fuera.
+  app, y No molestar. Se abre con la campana (un clic fuera lo cierra) o al tocar
+  la esquina superior derecha del marco (se cierra al sacar el cursor).
 - **Utilidades**: mantener activo, capturas, grabaciones, accesos rápidos y modo rendimiento.
 - **Temas** dinámicos desde el fondo (9 variantes) o predefinidos (Catppuccin,
   Gruvbox, Nord…), transparencia y desenfoque.

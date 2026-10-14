@@ -251,9 +251,6 @@ struct State {
     settings_visible: bool,
     /// shell.json has changes not written yet (see `schedule_config_save`).
     config_unsaved: bool,
-    /// The top-right corner opens the notification center again only after
-    /// the pointer has left it (no reopening right after an outside click).
-    sidebar_corner_armed: bool,
 }
 
 /// What a live-preview picker changes and how to undo it.
@@ -420,7 +417,6 @@ impl Caelestia {
                 weather_query: None,
                 settings_visible: false,
                 config_unsaved: false,
-                sidebar_corner_armed: true,
             }),
             svc: RefCell::new(None),
             hotkeys: RefCell::new(None),

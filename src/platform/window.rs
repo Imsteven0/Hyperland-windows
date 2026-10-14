@@ -310,8 +310,8 @@ pub fn fullscreen_foreground() -> bool {
     use windows::Win32::{
         Graphics::Gdi::{MONITOR_DEFAULTTONULL, MonitorFromWindow},
         UI::{
-            Shell::{QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState},
-            WindowsAndMessaging::{GWL_STYLE, GetClassNameW, GetWindowRect, IsWindowVisible, IsZoomed, WS_CAPTION},
+            Shell::{QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN, SHQueryUserNotificationState},
+            WindowsAndMessaging::{GetClassNameW, GetWindowRect, IsWindowVisible, IsZoomed},
         },
     };
     let hwnd = foreground_window();
@@ -335,12 +335,14 @@ pub fn fullscreen_foreground() -> bool {
         ) {
             return false;
         }
-        if matches!(SHQueryUserNotificationState(), Ok(QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)) {
+        // Exclusive full-screen games and presentation mode are certain.
+        // QUNS_BUSY is not: any window covering a monitor makes Windows
+        // report it, transparent overlays included (NVIDIA's overlay does),
+        // which kept performance mode (and no edge hover) on at the desktop.
+        if matches!(SHQueryUserNotificationState(), Ok(QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE)) {
             return true;
         }
-        // Maximised windows keep their caption, except UWP frames
-        // (ApplicationFrameHost) that draw their own: check both.
-        if !IsWindowVisible(hwnd).as_bool() || IsZoomed(hwnd).as_bool() || GetWindowLongPtrW(hwnd, GWL_STYLE) as u32 & WS_CAPTION.0 == WS_CAPTION.0 {
+        if !IsWindowVisible(hwnd).as_bool() || IsZoomed(hwnd).as_bool() {
             return false;
         }
         let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
@@ -349,7 +351,9 @@ pub fn fullscreen_foreground() -> bool {
         }
         let mon = monitor_info(hmon).rect;
         let mut r = RECT::default();
-        GetWindowRect(hwnd, &mut r).is_ok() && covers(Rect::from(r), mon)
+        // The foreground window covers its monitor and is the app on top of
+        // it (same rules as the bar hiding under full-screen videos).
+        GetWindowRect(hwnd, &mut r).is_ok() && covers(Rect::from(r), mon) && fullscreen_monitors(&[mon]) == [true]
     }
 }
 
