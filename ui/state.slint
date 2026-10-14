@@ -179,6 +179,8 @@ export global Shell {
     in property <string> place-status: "idle"; // idle | searching | none | error | detecting
     in property <string> cookie-path; // M3 expressive "cookie" shape, generated in Rust
     in property <string> komorebi-status: "stopped"; // not-installed | stopped | running | paused
+    // komorebic's complaint when komorebi.json can't be loaded ("" = none).
+    in property <string> komorebi-error;
     // notification center
     in property <[NotifGroup]> notif-groups;
     in property <int> notif-count;

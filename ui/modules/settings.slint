@@ -579,7 +579,8 @@ component TilingSection inherits VerticalLayout {
     SettingRow {
         first: true;
         title: "komorebi";
-        subtitle: Shell.komorebi-status == "running" ? @tr("Running · tiling managed by komorebi, UI by Caelestia")
+        subtitle: Shell.komorebi-error != "" ? @tr("komorebi.json error: {}", Shell.komorebi-error)
+            : Shell.komorebi-status == "running" ? @tr("Running · tiling managed by komorebi, UI by Caelestia")
             : Shell.komorebi-status == "paused" ? @tr("Paused (Alt+P to resume)")
             : Shell.komorebi-status == "stopped" ? @tr("Installed, not running")
             : @tr("Not installed");
@@ -588,7 +589,7 @@ component TilingSection inherits VerticalLayout {
             height: 10px;
             y: (parent.height - self.height) / 2;
             border-radius: 5px;
-            background: Shell.komorebi-status == "running" ? Theme.c.success : Shell.komorebi-status == "not-installed" ? Theme.c.error : Theme.c.outline;
+            background: Shell.komorebi-error != "" || Shell.komorebi-status == "not-installed" ? Theme.c.error : Shell.komorebi-status == "running" ? Theme.c.success : Theme.c.outline;
         }
     }
     if Shell.komorebi-status == "not-installed": ActionRow {

@@ -127,6 +127,36 @@ fn run_blocking(args: &[&str]) -> Option<std::process::Output> {
     komorebic_cmd(&komorebic()?).args(args).stdin(Stdio::null()).output().ok()
 }
 
+type ErrorHandler = Box<dyn Fn(Option<String>) + Send + Sync>;
+static ON_ERROR: std::sync::OnceLock<ErrorHandler> = std::sync::OnceLock::new();
+
+/// Where komorebi start/configuration errors go (`None` = all good again).
+pub fn on_config_error(f: impl Fn(Option<String>) + Send + Sync + 'static) {
+    let _ = ON_ERROR.set(Box::new(f));
+}
+
+fn report(error: Option<String>) {
+    if let Some(f) = ON_ERROR.get() {
+        f(error);
+    }
+}
+
+/// The first `Error:` line komorebic printed, if any.
+fn first_error(output: &str) -> Option<String> {
+    output.lines().find_map(|l| l.trim().strip_prefix("Error:")).map(|e| e.trim().to_owned()).filter(|e| !e.is_empty())
+}
+
+fn output_text(o: &std::process::Output) -> String {
+    format!("{}\n{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))
+}
+
+/// Validates a static configuration with `komorebic check` (a file komorebi
+/// can't parse makes `start` fail outright): the error, if any.
+pub fn check_config(path: &std::path::Path) -> Option<String> {
+    let path = path.display().to_string();
+    first_error(&output_text(&run_blocking(&["check", "--komorebi-config", &path])?))
+}
+
 /// Starts komorebi alone — never its bar (`--bar`) or hotkey daemon
 /// (`--whkd`/`--ahk`) — with the static config we keep in sync. Fetches the
 /// community app fixes first (once) so they're active from the start.
@@ -138,12 +168,26 @@ pub fn start() {
             let _ = run_blocking(&["fetch-app-specific-configuration"]);
         }
         let _ = link_app_specific_config();
+        if path.is_file() {
+            if let Some(e) = check_config(&path) {
+                log::error!("komorebi not started, {} is invalid: {e}", path.display());
+                return report(Some(e));
+            }
+        }
         let args: Vec<String> = if path.is_file() { vec!["start".into(), "--config".into(), path.display().to_string()] } else { vec!["start".into()] };
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         match run_blocking(&args) {
-            Some(o) if !o.status.success() => log::warn!("komorebic start: {}", String::from_utf8_lossy(&o.stderr).trim()),
-            None => log::warn!("komorebic start could not be executed"),
-            _ => {}
+            Some(o) if !o.status.success() => {
+                let text = output_text(&o);
+                let e = first_error(&text).unwrap_or_else(|| "komorebi did not start".into());
+                log::warn!("komorebic start failed: {e}\n{}", text.trim());
+                report(Some(e));
+            }
+            None => {
+                log::warn!("komorebic start could not be executed");
+                report(Some("komorebic could not be executed".into()));
+            }
+            _ => report(None),
         }
     });
 }
@@ -191,6 +235,9 @@ pub struct Visuals {
     /// `"*"` means every app (a single regex rule).
     pub layered_apps: Vec<String>,
 }
+
+/// komorebi's movement curve (see `merge_visuals`).
+const MOVE_STYLE: &str = "EaseOutCubic";
 
 /// What `sync_config` changed in `komorebi.json`.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -246,9 +293,11 @@ fn merge_visuals(old_text: &str, v: &Visuals, app_specific: Option<&std::path::P
     obj.insert("border_colours".into(), Value::Object(colours));
     // A komorebi `theme` would override border_colours; the shell owns colours now.
     obj.remove("theme");
-    // Caelestia's `standard` curve (Material 3), as a komorebi CubicBezier.
-    let curve = crate::services::workspace_anim::STANDARD;
-    obj.insert("animation".into(), json!({ "enabled": v.animations, "duration": v.animation_ms, "style": { "CubicBezier": curve }, "fps": 60 }));
+    // Caelestia moves windows on Material's `standard` curve. komorebi 0.1.41
+    // lists a CubicBezier style in its schema but refuses it when loading
+    // (it then can't start at all), so use the closest named curve:
+    // EaseOutCubic stays within 0.12 of `standard`.
+    obj.insert("animation".into(), json!({ "enabled": v.animations, "duration": v.animation_ms, "style": MOVE_STYLE, "fps": 60 }));
     // Our surfaces are UI, never tiles (also enforced at runtime via ignore-rule).
     let rule = json!({ "kind": "Exe", "id": "caelestia.exe", "matching_strategy": "Equals" });
     let rules = obj.entry("ignore_rules").or_insert_with(|| json!([]));
@@ -448,8 +497,18 @@ pub fn run_in_order(cmds: Vec<Vec<String>>) {
 
 
 /// Applies a changed static config to a running komorebi.
+/// Applies a changed static config to a running komorebi, only if komorebi
+/// can parse it (otherwise the running one keeps its configuration).
 pub fn reload_config() {
-    run_in_order(vec![vec!["replace-configuration".into(), config_path().display().to_string()]]);
+    thread::spawn(|| {
+        let path = config_path();
+        if let Some(e) = check_config(&path) {
+            log::error!("{} not reloaded, komorebi can't parse it: {e}", path.display());
+            return report(Some(e));
+        }
+        report(None);
+        run_in_order(vec![vec!["replace-configuration".into(), path.display().to_string()]]);
+    });
 }
 
 pub fn stop() {
@@ -709,6 +768,21 @@ mod tests {
             assert!(all.contains(&expected.to_owned()), "missing {expected} in {all:?}");
         }
         assert_eq!(all.last().map(String::as_str), Some("retile"));
+    }
+
+    /// komorebi 0.1.41 refuses CubicBezier when loading: a named style only.
+    #[test]
+    fn animation_style_is_one_komorebi_loads() {
+        let (text, _) = merge_visuals("", &visuals(), None).unwrap();
+        let style = &json(&text)["animation"]["style"];
+        assert_eq!(style, "EaseOutCubic", "got {style}");
+    }
+
+    #[test]
+    fn reads_komorebic_errors() {
+        let out = "Looking for configuration files in C:\\Users\\me\nFound komorebi.json\nError: data did not match any variant of untagged enum PerAnimationPrefixConfig at line 27 column 5\n\nLocation:\n   x";
+        assert_eq!(first_error(out).as_deref(), Some("data did not match any variant of untagged enum PerAnimationPrefixConfig at line 27 column 5"));
+        assert_eq!(first_error("Found komorebi.json; this file can be passed to the start command"), None);
     }
 
     #[test]

@@ -964,3 +964,6 @@ msgstr "Ajustes de Wi-Fi de Windows"
 
 msgid "Open network"
 msgstr "Abierta"
+
+msgid "komorebi.json error: {}"
+msgstr "Error en komorebi.json: {}"

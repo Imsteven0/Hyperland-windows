@@ -18,6 +18,10 @@ impl Caelestia {
         });
         crate::ipc::listen(|cmd| post(move |app| app.on_ipc(cmd)));
         komorebi::spawn_watcher(|status| post(move |app| app.on_komorebi(status)));
+        // A komorebi.json komorebi can't load: say so in Settings › Panels.
+        komorebi::on_config_error(|error| {
+            post(move |app| app.settings.global::<ShellGlobal>().set_komorebi_error(error.unwrap_or_default().into()));
+        });
         if let Some(hk) = Hotkeys::new(|target| post(move |app| app.on_hotkey(&target))) {
             *self.hotkeys.borrow_mut() = Some(hk);
             self.bind_hotkeys();
