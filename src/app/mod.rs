@@ -16,7 +16,7 @@ use serde_json::Value;
 use slint::{ComponentHandle, Image, ModelRc, PhysicalPosition, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer, TimerMode, VecModel};
 
 use crate::{
-    AppEntry, AudioDevice as UiAudioDevice, NotifGroup, NotifItem, PickerEntry, PluginWidget, SidebarWindow, Place, BarWindow, BtDevice as UiBtDevice, BorderWindow, CalendarDay, DashboardWindow, ForecastDay, InfoRow, LauncherWindow, MediaInfo, PopoutWindow, Recording, SessionWindow,
+    AppEntry, AudioDevice as UiAudioDevice, NotifGroup, NotifItem, PickerEntry, PluginWidget, SidebarWindow, WifiNet as UiWifiNet, Place, BarWindow, BtDevice as UiBtDevice, BorderWindow, CalendarDay, DashboardWindow, ForecastDay, InfoRow, LauncherWindow, MediaInfo, PopoutWindow, Recording, SessionWindow,
     SchemeCard, SettingsWindow, Shell as ShellGlobal, Status, SysStats, Theme, Tokens, UiConfig, UserInfo, UtilitiesWindow, WallpaperEntry, Weather, Workspace,
     config::{Config, Paths, watch::{Changed, Watcher}},
     hotkeys::Hotkeys,
@@ -251,6 +251,9 @@ struct State {
     settings_visible: bool,
     /// shell.json has changes not written yet (see `schedule_config_save`).
     config_unsaved: bool,
+    /// The top-right corner opens the notification center again only after
+    /// the pointer has left it (no reopening right after an outside click).
+    sidebar_corner_armed: bool,
 }
 
 /// What a live-preview picker changes and how to undo it.
@@ -304,6 +307,8 @@ pub struct Caelestia {
     config_apply_timer: Timer,
     komorebi_theme_timer: Timer,
     config_save_timer: Timer,
+    /// Watches for clicks outside open drawers (see `watch_outside_clicks`).
+    outside_click_timer: Timer,
     /// One blur pane per translucent surface (dashboard, launcher, utilities,
     /// session, popout, settings, sidebar), created lazily.
     blur_panes: RefCell<Vec<Option<crate::platform::blur::BlurPane>>>,
@@ -415,6 +420,7 @@ impl Caelestia {
                 weather_query: None,
                 settings_visible: false,
                 config_unsaved: false,
+                sidebar_corner_armed: true,
             }),
             svc: RefCell::new(None),
             hotkeys: RefCell::new(None),
@@ -426,6 +432,7 @@ impl Caelestia {
             config_apply_timer: Timer::default(),
             komorebi_theme_timer: Timer::default(),
             config_save_timer: Timer::default(),
+            outside_click_timer: Timer::default(),
             blur_panes: RefCell::new((0..7).map(|_| None).collect()),
             blur_timer: Timer::default(),
             popout_motion: RefCell::new(PopoutMotion::default()),

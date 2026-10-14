@@ -156,6 +156,9 @@ impl Caelestia {
             Drawer::Sidebar => self.push_notifications(),
         }
         self.set_drawer_flag(d, true);
+        if !by_hover && matches!(d, Drawer::Dashboard | Drawer::Utilities | Drawer::Sidebar) {
+            self.watch_outside_clicks();
+        }
         self.ensure_blur_tracking();
         if interactive {
             self.focus_drawer(d);
@@ -257,6 +260,7 @@ impl Caelestia {
         let hover_ok = self.perf_reason() != Some(PerfReason::Fullscreen);
         let dash_on = hover_ok && cfg.bool("dashboard.enabled") && cfg.bool("dashboard.showOnHover");
         let util_on = hover_ok && cfg.bool("utilities.enabled") && cfg.bool("utilities.showOnHover");
+        let side_on = hover_ok && cfg.bool("sidebar.showOnHover");
         drop(cfg);
 
         let check = |d: Drawer, zone: Rect| {
@@ -279,6 +283,73 @@ impl Caelestia {
             let w = drawers[2].rect.map(|r| r.width()).unwrap_or((330.0 * s) as i32);
             check(Drawer::Utilities, Rect { left: area.right - w, right: area.right, top: area.bottom - edge, bottom: area.bottom });
         }
+        if side_on {
+            // The frame's top strip at the right end: the caption buttons of
+            // windows sit below the frame, so reaching for them never opens it.
+            let corner = Rect { left: area.right - (160.0 * s) as i32, right: area.right, top: area.top, bottom: area.top + edge };
+            let in_corner = area.contains(x, y) && corner.contains(x, y);
+            let armed = self.st.borrow().sidebar_corner_armed;
+            if in_corner && armed && !drawers[Drawer::Sidebar as usize].open {
+                self.st.borrow_mut().sidebar_corner_armed = false;
+                // Opened on purpose: it stays while you read, until a click outside.
+                self.open(Drawer::Sidebar, false);
+            } else if !in_corner && !armed {
+                self.st.borrow_mut().sidebar_corner_armed = true;
+            }
+        }
+    }
+
+    /// Clicks outside a drawer opened on purpose close it, like a menu. The
+    /// launcher and session menu get there through focus; the dashboard,
+    /// utilities and notification center never take focus, so clicking on the
+    /// app that already had it changes nothing: watch the buttons instead,
+    /// every frame and only while such a drawer is open.
+    pub(super) fn watch_outside_clicks(&self) {
+        if self.outside_click_timer.running() {
+            return;
+        }
+        let weak = self.weak.clone();
+        let mut was_down = win::mouse_button_down();
+        self.outside_click_timer.start(TimerMode::Repeated, Duration::from_millis(16), move || {
+            let Some(app) = weak.upgrade() else { return };
+            let watched: Vec<(Drawer, Option<Rect>)> = {
+                let st = app.st.borrow();
+                [Drawer::Dashboard, Drawer::Utilities, Drawer::Sidebar]
+                    .into_iter()
+                    .filter(|&d| st.drawers[d as usize].open && !st.drawers[d as usize].by_hover)
+                    .map(|d| (d, st.drawers[d as usize].rect))
+                    .collect()
+            };
+            if watched.is_empty() {
+                return app.outside_click_timer.stop();
+            }
+            let down = win::mouse_button_down();
+            let pressed = down && !was_down;
+            was_down = down;
+            if !pressed {
+                return;
+            }
+            let (x, y) = win::cursor_pos();
+            // The bar's own buttons (bell, clock...) toggle drawers themselves.
+            if app.on_a_bar(x, y) || app.st.borrow().popout.rect.is_some_and(|r| r.contains(x, y)) {
+                return;
+            }
+            let s = app.screen_geom(app.active_screen()).1;
+            for (d, rect) in watched {
+                if !rect.is_some_and(|r| r.inflate((8.0 * s) as i32).contains(x, y)) {
+                    app.close(d);
+                }
+            }
+        });
+    }
+
+    /// Whether (x, y) is on the bar of any screen.
+    fn on_a_bar(&self, x: i32, y: i32) -> bool {
+        self.screens.borrow().iter().any(|s| {
+            let w = (self.bar_width() * s.monitor.scale).round() as i32;
+            let bar = Rect { left: s.area.left, top: s.area.top, right: s.area.left + w, bottom: s.area.bottom };
+            !s.covered && bar.contains(x, y)
+        })
     }
 
     pub(super) fn on_foreground(&self, hwnd: windows::Win32::Foundation::HWND) {

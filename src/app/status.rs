@@ -296,6 +296,43 @@ impl Caelestia {
         self.st.borrow_mut().net = n;
         self.refresh_status();
         self.push_bt_devices();
+        self.push_wifi_networks();
+    }
+
+    /// Wi-Fi networks -> the network popout and Settings › Network.
+    pub(super) fn push_wifi_networks(&self) {
+        let tr = crate::i18n::tr;
+        let (networks, limited, wrong_password) = {
+            let st = self.st.borrow();
+            let n = &st.net;
+            let model: Vec<UiWifiNet> = n
+                .wifi_networks
+                .iter()
+                .map(|w| {
+                    let error = n.wifi_error.as_ref().filter(|(ssid, _)| ssid == &w.ssid).map(|(_, e)| tr(e.message())).unwrap_or_default();
+                    UiWifiNet {
+                        ssid: w.ssid.clone().into(),
+                        // Saved networks listed without a scan have no signal.
+                        bars: if n.wifi_denied { -1 } else { w.bars as i32 },
+                        secured: w.secured,
+                        connected: w.connected,
+                        saved: w.saved,
+                        busy: n.wifi_busy == w.ssid,
+                        error: error.into(),
+                    }
+                })
+                .collect();
+            let wrong_password = n.wifi_error.as_ref().filter(|(_, e)| *e == crate::platform::wifi::ConnectError::Password).map(|(s, _)| s.clone());
+            (ModelRc::new(VecModel::from(model)), n.wifi_denied, wrong_password)
+        };
+        for g in [self.popout.global::<ShellGlobal>(), self.settings.global::<ShellGlobal>()] {
+            g.set_wifi_networks(networks.clone());
+            g.set_wifi_limited(limited);
+        }
+        // A rejected password: ask again in Settings.
+        if let Some(ssid) = wrong_password {
+            self.settings.global::<ShellGlobal>().set_wifi_ask(ssid.into());
+        }
     }
 
     /// Paired Bluetooth devices -> UI, with a "busy" flag while a

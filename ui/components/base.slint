@@ -347,6 +347,7 @@ export component StyledInput inherits Rectangle {
     in property <string> icon: "search";
     in-out property <string> text <=> input.text;
     in property <length> font-size: Theme.font-larger;
+    in property <InputType> input-type: InputType.text;
     callback accepted(string);
     callback edited(string);
     out property <bool> input-focused: input.has-focus;
@@ -392,6 +393,7 @@ export component StyledInput inherits Rectangle {
                 selection-background-color: Theme.c.primary.with-alpha(0.4);
                 selection-foreground-color: Theme.c.on-surface;
                 single-line: true;
+                input-type: root.input-type;
                 accepted => { root.accepted(self.text); }
                 edited => { root.edited(self.text); }
             }

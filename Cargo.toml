@@ -84,6 +84,8 @@ windows = { version = "0.62", features = [
     "UI_Notifications",
     "UI_Notifications_Management",
     "Devices_Radios",
+    "Devices_WiFi",
+    "Security_Credentials",
     "Devices_Bluetooth",
     "Devices_Geolocation",
     "Devices_Enumeration",

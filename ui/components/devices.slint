@@ -2,8 +2,8 @@
 // endpoints (pick the default) and paired Bluetooth devices (connect,
 // disconnect, forget).
 import { Theme } from "../theme.slint";
-import { Shell, AudioDevice, BtDevice } from "../state.slint";
-import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind } from "base.slint";
+import { Shell, AudioDevice, BtDevice, WifiNet } from "../state.slint";
+import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, StyledInput, TextButton } from "base.slint";
 
 // One selectable audio endpoint (radio row).
 export component AudioDeviceRow inherits Rectangle {
@@ -128,4 +128,138 @@ export component BtDeviceList inherits VerticalLayout {
         horizontal-alignment: center;
     }
     for d in Shell.bt-devices: BtDeviceRow { device: d; }
+}
+
+// One Wi-Fi network. Clicking joins it; the connected one can be dropped.
+// `inline-password` (Settings) shows a password field when asked to.
+export component WifiRow inherits Rectangle {
+    in property <WifiNet> net;
+    in property <bool> inline-password;
+    property <bool> asking: root.inline-password && Shell.wifi-ask == root.net.ssid;
+    height: root.asking ? 96px : 46px;
+    animate height { duration: Theme.anim-small; easing: cubic-bezier(0.2, 0, 0, 1); }
+    clip: true;
+    border-radius: Theme.rounding-small;
+    background: Theme.layer(Theme.c.surface-container-high, 2);
+    VerticalLayout {
+        alignment: start;
+        Rectangle {
+            height: 46px;
+            StateLayer {
+                border-radius: root.border-radius;
+                disabled: root.net.connected || root.net.busy;
+                clicked => { Shell.action("wifi-connect", root.net.ssid); }
+            }
+            HorizontalLayout {
+                padding-left: Theme.padding-small;
+                padding-right: Theme.padding-small;
+                spacing: Theme.spacing-small;
+                Rectangle {
+                    width: 34px;
+                    height: 34px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 17px;
+                    background: root.net.connected ? Theme.c.primary : Theme.layer(Theme.c.surface-container-highest, 3);
+                    animate background { duration: Theme.anim-small; }
+                    MaterialIcon {
+                        text: root.net.bars < 0 ? "wifi" : root.net.bars >= 4 ? "signal_wifi_4_bar" : root.net.bars == 3 ? "network_wifi_3_bar"
+                            : root.net.bars == 2 ? "network_wifi_2_bar" : root.net.bars == 1 ? "network_wifi_1_bar" : "signal_wifi_0_bar";
+                        font-size: Theme.font-larger;
+                        color: root.net.connected ? Theme.c.on-primary : Theme.c.on-surface-variant;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    StyledText { text: root.net.ssid; font-size: Theme.font-smaller; overflow: elide; }
+                    StyledText {
+                        text: root.net.busy ? @tr("Connecting…") : root.net.connected ? @tr("Connected") : root.net.error != "" ? root.net.error
+                            : root.net.saved ? @tr("Saved") : root.net.secured ? @tr("Secured") : @tr("Open network");
+                        font-size: Theme.font-small;
+                        color: root.net.error != "" && !root.net.busy ? Theme.c.error : root.net.connected ? Theme.c.primary : Theme.c.outline;
+                        overflow: elide;
+                    }
+                }
+                if root.net.secured && !root.net.connected: MaterialIcon {
+                    y: (parent.height - self.height) / 2;
+                    text: "lock";
+                    font-size: Theme.font-normal;
+                    color: Theme.c.outline;
+                }
+                if root.net.connected: IconButton {
+                    y: (parent.height - self.height) / 2;
+                    icon: "link_off";
+                    kind: ButtonKind.tonal;
+                    size: 30px;
+                    icon-size: Theme.font-larger;
+                    clicked => { Shell.action("wifi-disconnect", ""); }
+                }
+            }
+        }
+        if root.asking: HorizontalLayout {
+            height: 50px;
+            padding-left: Theme.padding-small;
+            padding-right: Theme.padding-small;
+            padding-bottom: 8px;
+            spacing: Theme.spacing-small;
+            pw := StyledInput {
+                horizontal-stretch: 1;
+                height: 40px;
+                icon: "key";
+                placeholder: @tr("Password");
+                input-type: InputType.password;
+                font-size: Theme.font-small;
+                accepted(t) => { Shell.action("wifi-join", root.net.ssid + "\n" + t); }
+                init => { self.focus-input(); }
+            }
+            TextButton {
+                y: (parent.height - self.height) / 2;
+                height: 34px;
+                icon: "wifi";
+                text: @tr("Connect");
+                font-size: Theme.font-small;
+                clicked => { Shell.action("wifi-join", root.net.ssid + "\n" + pw.text); }
+            }
+        }
+    }
+}
+
+// The networks around (or the saved ones when Windows hides the rest).
+export component WifiList inherits VerticalLayout {
+    in property <int> max: 6;
+    in property <bool> inline-password;
+    spacing: 4px;
+    for n[i] in Shell.wifi-networks: WifiRow {
+        visible: i < root.max;
+        height: i < root.max ? self.preferred-height : 0;
+        net: n;
+        inline-password: root.inline-password;
+    }
+    if Shell.status.wifi-available && Shell.wifi-networks.length == 0 && !Shell.wifi-limited: StyledText {
+        text: @tr("Looking for networks…");
+        font-size: Theme.font-small;
+        color: Theme.c.outline;
+        horizontal-alignment: center;
+    }
+    // Windows 11 24H2+: nearby networks need location services.
+    if Shell.status.wifi-available && Shell.wifi-limited: HorizontalLayout {
+        spacing: Theme.spacing-small;
+        StyledText {
+            horizontal-stretch: 1;
+            text: @tr("Turn on Windows location to see nearby networks");
+            font-size: Theme.font-small;
+            color: Theme.c.outline;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+        TextButton {
+            y: (parent.height - self.height) / 2;
+            height: 30px;
+            icon: "location_on";
+            text: @tr("Location");
+            kind: ButtonKind.outlined;
+            font-size: Theme.font-small;
+            clicked => { Shell.action("open-uri", "ms-settings:privacy-location"); }
+        }
+    }
 }

@@ -931,3 +931,36 @@ msgstr "Vertical"
 
 msgid "Fade"
 msgstr "Desvanecer"
+
+msgid "Open notifications from the top-right corner"
+msgstr "Abrir notificaciones desde la esquina superior derecha"
+
+msgid "Stays open until you click outside it"
+msgstr "Se queda abierto hasta que hagas clic fuera"
+
+msgid "Saved"
+msgstr "Guardada"
+
+msgid "Secured"
+msgstr "Protegida"
+
+msgid "Password"
+msgstr "Contraseña"
+
+msgid "Connect"
+msgstr "Conectar"
+
+msgid "Looking for networks…"
+msgstr "Buscando redes…"
+
+msgid "Turn on Windows location to see nearby networks"
+msgstr "Activa la ubicación de Windows para ver las redes cercanas"
+
+msgid "Location"
+msgstr "Ubicación"
+
+msgid "Wi-Fi settings in Windows"
+msgstr "Ajustes de Wi-Fi de Windows"
+
+msgid "Open network"
+msgstr "Abierta"

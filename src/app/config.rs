@@ -61,6 +61,7 @@ impl Caelestia {
             clock_12h: cfg.bool("services.useTwelveHourClock"),
             dashboard_enabled: cfg.bool("dashboard.enabled"),
             dashboard_show_on_hover: cfg.bool("dashboard.showOnHover"),
+            sidebar_show_on_hover: cfg.bool("sidebar.showOnHover"),
             launcher_max_shown: cfg.i64("launcher.maxShown").clamp(1, 20) as i32,
             launcher_action_prefix: cfg.str("launcher.actionPrefix").into(),
             clipboard_history: cfg.bool("launcher.clipboardHistory"),

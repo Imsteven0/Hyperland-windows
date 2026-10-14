@@ -532,6 +532,17 @@
         }
       }
     },
+    "sidebar": {
+      "type": "object",
+      "description": "Notification center.",
+      "properties": {
+        "showOnHover": {
+          "type": "boolean",
+          "description": "Open it by touching the top-right corner of the screen frame; it stays open until you click outside it.",
+          "default": true
+        }
+      }
+    },
     "windows": {
       "type": "object",
       "properties": {

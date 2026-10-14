@@ -55,6 +55,11 @@ fn es(s: &str) -> Option<&'static str> {
         "Pick the dynamic scheme variant (live preview)" => "Elige la variante del esquema dinámico (vista previa en vivo)",
         "Transparency" => "Transparencia",
         "Confetti" => "Confeti",
+        "Wrong password" => "Contraseña incorrecta",
+        "Network not in range" => "La red no está al alcance",
+        "Timed out" => "Se agotó el tiempo",
+        "Needs Windows settings (enterprise sign-in)" => "Requiere los ajustes de Windows (inicio de sesión empresarial)",
+        "Could not connect" => "No se pudo conectar",
         "Celebrate with confetti on screen" => "Celebra con confeti en la pantalla",
         "Pick the panel opacity theme (live preview)" => "Elige el tema de opacidad de los paneles (vista previa en vivo)",
         "Scheme" => "Esquema",
@@ -277,6 +282,11 @@ mod tests {
             "Previous dots restored",
             "no shell.json or scheme.json in that repository",
             "that shell.json is not a Caelestia configuration",
+            "Wrong password",
+            "Network not in range",
+            "Timed out",
+            "Needs Windows settings (enterprise sign-in)",
+            "Could not connect",
         ]);
         let missing: Vec<&&str> = keys.iter().filter(|k| es(k).is_none()).collect();
         assert!(missing.is_empty(), "no Spanish for {missing:?}");

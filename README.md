@@ -24,7 +24,8 @@ dots can be shared between Linux and Windows.
 
 - **Bar** on every monitor: workspaces with their app icons (Windows virtual
   desktops, or komorebi workspaces), active window, clock, status icons with
-  popouts (audio, network, Bluetooth, battery, calendar) and a notification bell.
+  popouts (audio, network with Wi-Fi networks to join, Bluetooth, battery,
+  calendar) and a notification bell.
   Like on Hyprland, a full-screen video or game covers the bar and frame of its monitor.
 - **Dashboard**: weather, calendar, media controls with cover art, CPU/GPU/RAM/disk
   and network graphs, plus your own plugin widgets.
@@ -34,7 +35,8 @@ dots can be shared between Linux and Windows.
   - `:` emoji picker in English or Spanish (`:fire`, `:fuego`),
   - `;` clipboard history (memory only; password managers are skipped).
 - **Notification center**: what Windows keeps in its Action Center, grouped by
-  app, with Do Not Disturb.
+  app, with Do Not Disturb. Opens from the bell or the top-right corner of the
+  frame and stays until you click outside it.
 - **Utilities**: keep awake, screenshots, recordings, quick toggles, performance mode.
 - **Themes**: dynamic Material You schemes from the wallpaper (9 variants) or
   presets (Catppuccin, Gruvbox, Nord…), transparency and blur.

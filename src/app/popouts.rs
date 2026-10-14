@@ -9,6 +9,9 @@ impl Caelestia {
         let y: f32 = parse_num(y).unwrap_or(0.0);
         let (area, sc) = self.screen_geom(self.active_screen());
         let was_open = self.st.borrow().popout.open;
+        if kind == "network" && !was_open {
+            self.radio(RadioCmd::WifiScan);
+        }
         if kind == "audio" {
             self.push_audio_devices(true); // the panel height depends on the lists
         }

@@ -3,7 +3,7 @@
 // (keeping unknown keys intact) and the hot-reload loop restyles the shell.
 import { Theme, Motion } from "../theme.slint";
 import { Shell, InfoRow, UiConfig, SchemeCard, WallpaperEntry } from "../state.slint";
-import { AudioDeviceList, BtDeviceList } from "../components/devices.slint";
+import { AudioDeviceList, BtDeviceList, WifiList } from "../components/devices.slint";
 import { LocationPicker } from "../components/location.slint";
 import { StyledText, MaterialIcon, StateLayer, IconButton, ButtonKind, StyledSwitch, StyledSlider, TextButton, StyledInput, Card, Separator, LinearProgress } from "../components/base.slint";
 
@@ -484,9 +484,14 @@ component WallpaperPage inherits VerticalLayout {
 
 component NetworkPage inherits VerticalLayout {
     spacing: 2px;
-    SwitchRow { first: true; title: @tr("Wi-Fi"); subtitle: Shell.status.network-name != "" ? @tr("Connected to {}", Shell.status.network-name) : @tr("Not connected"); key: "@wifi"; value: Shell.status.wifi; }
+    SwitchRow { first: true; title: @tr("Wi-Fi"); subtitle: !Shell.status.wifi-available ? @tr("Off") : Shell.status.wifi && Shell.status.network-name != "" ? @tr("Connected to {}", Shell.status.network-name) : @tr("Not connected"); key: "@wifi"; value: Shell.status.wifi-available; }
     SettingRow { title: @tr("Internet"); subtitle: Shell.status.online ? @tr("Online") : @tr("Offline"); MaterialIcon { text: Shell.status.online ? "public" : "public_off"; color: Theme.c.primary; } }
-    ActionRow { title: @tr("Wi-Fi networks"); icon: "open_in_new"; button: @tr("Open"); clicked => { Shell.action("open-uri", "ms-settings:network-wifi"); } }
+    if Shell.status.wifi-available: HorizontalLayout {
+        SectionLabel { text: @tr("Wi-Fi networks"); horizontal-stretch: 1; }
+        IconButton { y: (parent.height - self.height) / 2; icon: "refresh"; kind: ButtonKind.text; size: 30px; clicked => { Shell.action("wifi-scan", ""); } }
+    }
+    if Shell.status.wifi-available: WifiList { max: 40; inline-password: true; }
+    ActionRow { first: true; title: @tr("Wi-Fi settings in Windows"); icon: "open_in_new"; button: @tr("Open"); clicked => { Shell.action("open-uri", "ms-settings:network-wifi"); } }
     ActionRow { last: true; title: @tr("Ethernet & VPN"); icon: "open_in_new"; button: @tr("Open"); clicked => { Shell.action("open-uri", "ms-settings:network-status"); } }
 }
 
@@ -640,6 +645,7 @@ component PanelsPage inherits VerticalLayout {
     SectionLabel { text: @tr("Dashboard & launcher"); }
     SwitchRow { first: true; title: @tr("Dashboard"); key: "dashboard.enabled"; value: Shell.cfg.dashboard-enabled; }
     SwitchRow { title: @tr("Open dashboard on hover"); subtitle: @tr("Hover the top edge of the screen"); key: "dashboard.showOnHover"; value: Shell.cfg.dashboard-show-on-hover; }
+    SwitchRow { title: @tr("Open notifications from the top-right corner"); subtitle: @tr("Stays open until you click outside it"); key: "sidebar.showOnHover"; value: Shell.cfg.sidebar-show-on-hover; }
     SliderRow { title: @tr("Launcher results"); key: "launcher.maxShown"; value: Shell.cfg.launcher-max-shown; minimum: 3; maximum: 12; step: 1; decimals: 0; }
     SwitchRow { title: @tr("Clipboard history"); subtitle: @tr("Type \";\" in the launcher · kept in memory only, password managers are skipped"); key: "launcher.clipboardHistory"; value: Shell.cfg.clipboard-history; }
     SwitchRow { title: @tr("Paste after choosing"); subtitle: @tr("Clipboard, emoji and calculator results are pasted into the previous window"); key: "launcher.clipboardPaste"; value: Shell.cfg.clipboard-paste; }

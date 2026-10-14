@@ -21,7 +21,8 @@ que los dots se pueden compartir entre Linux y Windows.
 
 - **Barra** en cada monitor: espacios de trabajo con los iconos de sus apps
   (escritorios virtuales de Windows o espacios de komorebi), ventana activa, reloj,
-  iconos de estado con ventanas emergentes y campana de notificaciones. Como en
+  iconos de estado con ventanas emergentes (red con las redes Wi-Fi para
+  conectarte, audio, Bluetooth…) y campana de notificaciones. Como en
   Hyprland, un video o juego en pantalla completa tapa la barra y el marco de su monitor.
 - **Panel**: clima, calendario, multimedia con carátula, CPU/GPU/RAM/disco/red y
   tus propios widgets de plugins.
@@ -31,7 +32,8 @@ que los dots se pueden compartir entre Linux y Windows.
   - `:` emojis en español o inglés (`:fuego`, `:fire`),
   - `;` historial del portapapeles (solo en memoria; ignora los gestores de contraseñas).
 - **Centro de notificaciones** con las notificaciones de Windows agrupadas por
-  app, y No molestar.
+  app, y No molestar. Se abre con la campana o desde la esquina superior derecha
+  del marco, y se queda abierto hasta que haces clic fuera.
 - **Utilidades**: mantener activo, capturas, grabaciones, accesos rápidos y modo rendimiento.
 - **Temas** dinámicos desde el fondo (9 variantes) o predefinidos (Catppuccin,
   Gruvbox, Nord…), transparencia y desenfoque.

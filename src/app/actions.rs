@@ -181,6 +181,9 @@ impl Caelestia {
                 self.close_popout();
                 self.toggle_settings(Some(true));
                 self.settings.set_page(arg.parse().unwrap_or(0));
+                if arg == "1" {
+                    self.radio(RadioCmd::WifiScan);
+                }
             }
             "workspace" => {
                 let target: usize = arg.parse().unwrap_or(1);
@@ -249,6 +252,24 @@ impl Caelestia {
             }
             "place-auto" => self.set_weather_place(None),
             "bt-refresh" => self.radio(RadioCmd::Refresh),
+            "wifi-scan" => self.radio(RadioCmd::WifiScan),
+            "wifi-disconnect" => self.radio(RadioCmd::WifiDisconnect),
+            "wifi-connect" => {
+                let needs_password = self.st.borrow().net.wifi_networks.iter().any(|w| w.ssid == arg && w.secured && !w.saved && !w.connected);
+                if needs_password {
+                    // The popout never takes the keyboard: type it in Settings.
+                    self.settings.global::<ShellGlobal>().set_wifi_ask(arg.into());
+                    self.action("settings-page", "1");
+                } else {
+                    self.radio(RadioCmd::WifiConnect(arg.to_owned(), None));
+                }
+            }
+            "wifi-join" => {
+                if let Some((ssid, password)) = arg.split_once('\n') {
+                    self.settings.global::<ShellGlobal>().set_wifi_ask("".into());
+                    self.radio(RadioCmd::WifiConnect(ssid.to_owned(), Some(password.to_owned())));
+                }
+            }
             "toggle-mic" => {
                 let muted = audio::state().mic_muted;
                 audio::set_muted(true, !muted);

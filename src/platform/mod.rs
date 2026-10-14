@@ -9,6 +9,7 @@ pub mod focus;
 pub mod ghosts;
 pub mod shell_items;
 pub mod system;
+pub mod wifi;
 pub mod window;
 pub mod workspace_overlay;
 

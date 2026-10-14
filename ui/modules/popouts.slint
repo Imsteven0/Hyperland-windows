@@ -6,7 +6,7 @@ import { Shell } from "../state.slint";
 import { StyledText, MaterialIcon, IconButton, ButtonKind, StyledSwitch, StyledSlider, TextButton, Separator } from "../components/base.slint";
 import { DrawerFrame, Edge } from "../components/drawer.slint";
 import { Calendar } from "../components/calendar.slint";
-import { AudioDeviceList, BtDeviceList } from "../components/devices.slint";
+import { AudioDeviceList, BtDeviceList, WifiList } from "../components/devices.slint";
 
 component Header inherits HorizontalLayout {
     in property <string> icon;
@@ -103,11 +103,19 @@ component NetworkPopout inherits VerticalLayout {
         spacing: Theme.spacing-small;
         MaterialIcon { text: "wifi"; color: Theme.c.on-surface-variant; }
         StyledText { text: @tr("Wi-Fi"); horizontal-stretch: 1; }
+        if Shell.status.wifi-available: IconButton {
+            y: (parent.height - self.height) / 2;
+            icon: "refresh";
+            kind: ButtonKind.text;
+            size: 30px;
+            clicked => { Shell.action("wifi-scan", ""); }
+        }
         StyledSwitch {
             checked: Shell.status.wifi-available;
             toggled(v) => { Shell.set-config("@wifi", v ? "true" : "false"); }
         }
     }
+    if Shell.status.wifi-available: WifiList { max: 6; }
     HorizontalLayout {
         spacing: Theme.spacing-small;
         TextButton { icon: "tune"; text: @tr("Settings"); font-size: Theme.font-small; clicked => { Shell.action("settings-page", "1"); } }
@@ -177,13 +185,13 @@ export component PopoutWindow inherits Window {
     out property <length> blur-h: frame.panel-h * root.stretch;
 
     public pure function panel-width-for(k: string) -> length {
-        k == "calendar" ? 270px : k == "activewindow" ? 320px : k == "audio" || k == "bluetooth" ? 330px : k == "network" ? 300px : 280px
+        k == "calendar" ? 270px : k == "activewindow" ? 320px : k == "audio" || k == "bluetooth" ? 330px : k == "network" ? 340px : 280px
     }
     // Lists make audio/bluetooth grow with the number of devices.
     public pure function panel-height-for(k: string) -> length {
         k == "audio" ? 268px + (Shell.audio-outputs.length + Shell.audio-inputs.length) * 36px
             : k == "bluetooth" ? 150px + Math.max(1, Shell.bt-devices.length) * 50px
-            : k == "network" ? 172px : k == "battery" ? 110px : k == "calendar" ? 270px : 120px
+            : k == "network" ? 172px + (Shell.status.wifi-available ? Math.min(6, Shell.wifi-networks.length) * 50px + (Shell.wifi-networks.length == 0 || Shell.wifi-limited ? 44px : 0) : 0) : k == "battery" ? 110px : k == "calendar" ? 270px : 120px
     }
     // The panel morphs between items like Caelestia's popouts.
     property <length> pw: root.panel-width-for(root.kind);

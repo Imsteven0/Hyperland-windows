@@ -57,6 +57,10 @@ export struct AudioDevice { id: string, name: string, default: bool }
 
 export struct BtDevice { id: string, name: string, icon: string, connected: bool, audio: bool, busy: bool }
 
+// A Wi-Fi network (services::connectivity). `bars` is -1 when unknown
+// (saved networks listed without a scan); `error` is the last failed join.
+export struct WifiNet { ssid: string, bars: int, secured: bool, connected: bool, saved: bool, busy: bool, error: string }
+
 // A plugin widget (see services/plugins.rs). `index` is what
 // `plugin-click` takes; `tone` is "" | good | warning | critical.
 export struct PluginWidget {
@@ -91,6 +95,7 @@ export struct UiConfig {
     clock-12h: bool,
     dashboard-enabled: bool,
     dashboard-show-on-hover: bool,
+    sidebar-show-on-hover: bool,
     launcher-max-shown: int,
     launcher-action-prefix: string,
     clipboard-history: bool,
@@ -165,6 +170,11 @@ export global Shell {
     in property <[AudioDevice]> audio-outputs;
     in property <[AudioDevice]> audio-inputs;
     in property <[BtDevice]> bt-devices;
+    in property <[WifiNet]> wifi-networks;
+    // Windows hides nearby networks (location services off): saved ones only.
+    in property <bool> wifi-limited;
+    // Network whose password field is open in Settings › Network.
+    in-out property <string> wifi-ask;
     in property <[Place]> places;
     in property <string> place-status: "idle"; // idle | searching | none | error | detecting
     in property <string> cookie-path; // M3 expressive "cookie" shape, generated in Rust
@@ -196,7 +206,7 @@ export global Shell {
         bar-persistent: true, bar-show-workspaces: true, bar-workspaces-shown: 5, bar-active-trail: true,
         bar-show-active-window: true, bar-show-clock: true, bar-show-status: true, bar-show-power: true,
         bar-show-audio: true, bar-show-network: true, bar-show-bluetooth: true, bar-show-battery: true, bar-show-notifications: true,
-        clock-12h: true, dashboard-enabled: true, dashboard-show-on-hover: true,
+        clock-12h: true, dashboard-enabled: true, dashboard-show-on-hover: true, sidebar-show-on-hover: true,
         launcher-max-shown: 7, launcher-action-prefix: ">", clipboard-history: true, use-fahrenheit: false,
         wallpaper-enabled: true, scheme-variant: "tonalspot", scheme-mode: "dark", scheme-name: "dynamic", smart-scheme: true, anim-scale: 1, blur: true, super-launcher: false, wallpaper-repo: "", autostart: true, language: "en",
         border-thickness: 10, border-rounding: 25, rounding-scale: 1, font-scale: 1,

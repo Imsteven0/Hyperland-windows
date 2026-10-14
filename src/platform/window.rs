@@ -434,6 +434,12 @@ pub fn fullscreen_monitors(monitors: &[Rect]) -> Vec<bool> {
     fullscreen_per_monitor(&stack, monitors)
 }
 
+/// Whether a mouse button (left, right or middle) is down right now.
+pub fn mouse_button_down() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
+    [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].iter().any(|vk| unsafe { GetAsyncKeyState(vk.0 as i32) } as u16 & 0x8000 != 0)
+}
+
 /// Shows or hides a window without activating it or telling its toolkit.
 pub fn set_shown(hwnd: HWND, shown: bool) {
     use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOWNA, ShowWindow};

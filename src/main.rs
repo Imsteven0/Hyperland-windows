@@ -109,6 +109,24 @@ fn diag() -> Result<()> {
             Err(e) => println!("  error: {e:#}"),
         }
     }
+    println!("== wi-fi");
+    let allowed = platform::wifi::request_access();
+    match platform::wifi::adapter() {
+        None => {
+            println!("  no adapter (access allowed: {allowed}): saved networks only");
+            for n in platform::wifi::saved_networks() {
+                println!("  [{}] {}", if n.connected { "x" } else { " " }, n.ssid);
+            }
+        }
+        Some(a) => {
+            let scanned = platform::wifi::scan(&a);
+            let nets = platform::wifi::networks(&a);
+            println!("  access allowed: {allowed}, scan ok: {scanned}, {} networks", nets.len());
+            for n in nets.iter().take(12) {
+                println!("  [{}] {:<32} bars={} secured={} saved={}", if n.connected { "x" } else { " " }, n.ssid, n.bars, n.secured, n.saved);
+            }
+        }
+    }
     println!("== bluetooth (paired)");
     for d in platform::bluetooth::paired_devices() {
         let ks = d.container.map(platform::audio::bluetooth_audio_controls).unwrap_or(0);

@@ -104,6 +104,7 @@ pub fn default_config() -> Value {
             "enabled": true
         },
         "utilities": { "enabled": true, "showOnHover": true },
+        "sidebar": { "showOnHover": true },
         "windows": {
             "autostart": true,
             "blur": true,
