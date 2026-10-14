@@ -121,6 +121,30 @@ pub fn make_surface(hwnd: HWND, style: SurfaceStyle) {
             set_topmost(hwnd);
         }
     }
+    not_fullscreen(hwnd);
+}
+
+/// Keeps Windows from taking the window for a full-screen app. Explorer
+/// treats any window covering a whole monitor as one ("rude" window) — our
+/// screen frame does — and then reports the user as busy: toasts are held
+/// back as if a game were running, and our own performance mode would
+/// switch on. `NonRudeHWND` opts out; Explorer re-reads it when the window
+/// is shown, so a window that is already visible is shown again.
+pub fn not_fullscreen(hwnd: HWND) {
+    use windows::Win32::{
+        Foundation::HANDLE,
+        UI::WindowsAndMessaging::{GetPropW, IsWindowVisible, SW_HIDE, SW_SHOWNA, SetPropW, ShowWindow},
+    };
+    let name = windows::core::w!("NonRudeHWND");
+    unsafe {
+        if !GetPropW(hwnd, name).is_invalid() {
+            return; // already marked
+        }
+        if SetPropW(hwnd, name, Some(HANDLE(std::ptr::without_provenance_mut(1)))).is_ok() && IsWindowVisible(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_HIDE);
+            let _ = ShowWindow(hwnd, SW_SHOWNA);
+        }
+    }
 }
 
 /// Click-through for the screen frame without WS_EX_LAYERED (which breaks
