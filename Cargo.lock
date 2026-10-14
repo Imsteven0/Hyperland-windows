@@ -639,7 +639,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "caelestia-win"
-version = "0.1.3"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
