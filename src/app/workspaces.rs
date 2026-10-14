@@ -196,7 +196,7 @@ impl Caelestia {
             komorebi::reload_config();
         }
         // Gaps, borders, animations and colours apply live, keeping the layout.
-        let counts: Vec<usize> = state.monitors.iter().map(|m| m.workspaces.len()).collect();
+        let counts: Vec<(usize, usize)> = state.monitors.iter().map(|m| (m.workspaces.len(), m.focused)).collect();
         komorebi::run_in_order(komorebi::live_commands(previous.as_ref(), &visuals, &counts));
     }
 

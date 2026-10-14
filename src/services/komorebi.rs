@@ -339,20 +339,26 @@ fn colour_commands(colours: &[(&'static str, String)]) -> Vec<Vec<String>> {
 
 /// komorebic commands that bring a running komorebi from `old` to `new`
 /// without reloading its configuration; `old` = `None` sends everything.
-/// `workspaces[m]` is the workspace count of monitor `m`. komorebi stores
-/// paddings right away but only lays windows out again on `retile`.
-pub fn live_commands(old: Option<&Visuals>, new: &Visuals, workspaces: &[usize]) -> Vec<Vec<String>> {
+/// `workspaces[m]` is (workspace count, focused workspace) of monitor `m`.
+/// komorebi stores paddings right away but only lays windows out again on
+/// `retile`, so the workspaces on screen go first, then `retile`, then the
+/// hidden ones (laid out when shown): what you see updates after ~5 calls.
+pub fn live_commands(old: Option<&Visuals>, new: &Visuals, workspaces: &[(usize, usize)]) -> Vec<Vec<String>> {
     let changed = |f: fn(&Visuals) -> String| old.is_none_or(|o| f(o) != f(new));
     let on_off = |b: bool| if b { "enable" } else { "disable" }.to_owned();
     let mut cmds: Vec<Vec<String>> = Vec::new();
+    let mut hidden: Vec<Vec<String>> = Vec::new();
     let mut retile = false;
     for (verb, value, size) in [
         ("workspace-padding", changed(|v| v.workspace_padding.to_string()), new.workspace_padding),
         ("container-padding", changed(|v| v.container_padding.to_string()), new.container_padding),
     ] {
         if value {
-            for (m, &count) in workspaces.iter().enumerate() {
-                cmds.extend((0..count).map(|w| vec![verb.to_owned(), m.to_string(), w.to_string(), size.max(0).to_string()]));
+            for (m, &(count, focused)) in workspaces.iter().enumerate() {
+                for w in 0..count {
+                    let cmd = vec![verb.to_owned(), m.to_string(), w.to_string(), size.max(0).to_string()];
+                    if w == focused { cmds.push(cmd) } else { hidden.push(cmd) }
+                }
             }
             retile = true;
         }
@@ -378,7 +384,27 @@ pub fn live_commands(old: Option<&Visuals>, new: &Visuals, workspaces: &[usize])
     if retile {
         cmds.push(vec!["retile".into()]);
     }
+    cmds.extend(hidden);
     cmds
+}
+
+/// What a queued command sets: a newer command with the same key makes an
+/// older, not yet sent one pointless (scrolling a slider queues many).
+fn command_key(cmd: &[String]) -> Option<&[String]> {
+    let keep = match cmd.first().map(String::as_str) {
+        Some("workspace-padding" | "container-padding" | "border-colour") => 3,
+        Some("border" | "border-width" | "border-offset" | "animation" | "animation-duration" | "retile" | "replace-configuration") => 1,
+        _ => return None, // actions: every one counts
+    };
+    cmd.get(..keep)
+}
+
+/// Keeps only the newest command per key, where the newest one was queued.
+fn coalesce(queue: Vec<Vec<String>>) -> Vec<Vec<String>> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out: Vec<Vec<String>> = queue.into_iter().rev().filter(|c| command_key(c).is_none_or(|k| seen.insert(k.to_vec()))).collect();
+    out.reverse();
+    out
 }
 
 /// Runs komorebic commands one after another on a single worker, in the
@@ -393,7 +419,18 @@ pub fn run_in_order(cmds: Vec<Vec<String>>) {
     let tx = QUEUE.get_or_init(|| {
         let (tx, rx) = crossbeam_channel::unbounded::<Vec<String>>();
         let spawned = thread::Builder::new().name("komorebic".into()).spawn(move || {
-            for args in rx {
+            let mut queue: Vec<Vec<String>> = Vec::new();
+            loop {
+                if queue.is_empty() {
+                    match rx.recv() {
+                        Ok(c) => queue.push(c),
+                        Err(_) => return,
+                    }
+                }
+                // Each call takes tens of ms: drop what newer commands replace.
+                queue.extend(rx.try_iter());
+                queue = coalesce(queue);
+                let args = queue.remove(0);
                 if let Err(e) = komorebic_cmd(&exe).args(&args).stdout(Stdio::null()).stderr(Stdio::null()).status() {
                     log::warn!("komorebic {args:?}: {e}");
                 }
@@ -650,9 +687,10 @@ mod tests {
     fn padding_changes_apply_live_then_retile() {
         let old = visuals();
         let new = Visuals { container_padding: 4, ..visuals() };
+        // Monitor 0 shows workspace 1, monitor 1 workspace 0: those first.
         assert_eq!(
-            joined(&live_commands(Some(&old), &new, &[2, 1])),
-            ["container-padding 0 0 4", "container-padding 0 1 4", "container-padding 1 0 4", "retile"]
+            joined(&live_commands(Some(&old), &new, &[(2, 1), (1, 0)])),
+            ["container-padding 0 1 4", "container-padding 1 0 4", "retile", "container-padding 0 0 4"]
         );
     }
 
@@ -660,17 +698,26 @@ mod tests {
     fn border_and_animation_changes_need_no_retile() {
         let old = visuals();
         let new = Visuals { border_width: 6, animations: false, animation_ms: 300, ..visuals() };
-        assert_eq!(joined(&live_commands(Some(&old), &new, &[5])), ["border-width 6", "animation disable", "animation-duration 300"]);
-        assert!(live_commands(Some(&old), &old, &[5]).is_empty(), "nothing changed, nothing sent");
+        assert_eq!(joined(&live_commands(Some(&old), &new, &[(5, 0)])), ["border-width 6", "animation disable", "animation-duration 300"]);
+        assert!(live_commands(Some(&old), &old, &[(5, 0)]).is_empty(), "nothing changed, nothing sent");
     }
 
     #[test]
     fn unknown_state_sends_everything() {
-        let all = joined(&live_commands(None, &visuals(), &[1]));
+        let all = joined(&live_commands(None, &visuals(), &[(1, 0)]));
         for expected in ["workspace-padding 0 0 10", "container-padding 0 0 10", "border enable", "border-width 3", "border-offset 0", "animation enable", "animation-duration 250", "border-colour -w single 181 196 255", "retile"] {
             assert!(all.contains(&expected.to_owned()), "missing {expected} in {all:?}");
         }
         assert_eq!(all.last().map(String::as_str), Some("retile"));
+    }
+
+    #[test]
+    fn scrolling_a_slider_sends_only_the_last_value() {
+        let cmd = |s: &str| s.split(' ').map(String::from).collect::<Vec<_>>();
+        let queue = ["container-padding 0 0 5", "retile", "container-padding 0 1 5", "container-padding 0 0 6", "retile", "border-width 2", "focus left", "container-padding 0 0 7", "retile", "focus left"]
+            .map(cmd)
+            .to_vec();
+        assert_eq!(joined(&coalesce(queue)), ["container-padding 0 1 5", "border-width 2", "focus left", "container-padding 0 0 7", "retile", "focus left"]);
     }
 
 

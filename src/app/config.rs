@@ -132,9 +132,56 @@ impl Caelestia {
         self.ensure_blur_tracking();
         self.sync_clipboard_watcher();
         if !matches!(self.st.borrow().komorebi, KStatus::NotInstalled) && self.st.borrow().picker.is_none() {
-            self.push_komorebi_theme();
+            self.schedule_komorebi_theme();
         }
         self.tick_clock_force();
+    }
+
+    /// komorebi gets a setting once it rests for a moment; while komorebic
+    /// runs, newer values also merge in its queue (`komorebi::run_in_order`).
+    fn schedule_komorebi_theme(&self) {
+        let weak = self.weak.clone();
+        self.komorebi_theme_timer.start(TimerMode::SingleShot, Duration::from_millis(40), move || {
+            if let Some(app) = weak.upgrade() {
+                app.push_komorebi_theme();
+            }
+        });
+    }
+
+    /// Refreshes the UI from the config once per frame, however many
+    /// settings changed in between.
+    fn schedule_apply_config(&self) {
+        if self.config_apply_timer.running() {
+            return;
+        }
+        let weak = self.weak.clone();
+        self.config_apply_timer.start(TimerMode::SingleShot, Duration::from_millis(16), move || {
+            if let Some(app) = weak.upgrade() {
+                app.apply_config();
+            }
+        });
+    }
+
+    /// Writes shell.json shortly after the last change.
+    fn schedule_config_save(&self) {
+        let weak = self.weak.clone();
+        self.config_save_timer.start(TimerMode::SingleShot, Duration::from_millis(400), move || {
+            if let Some(app) = weak.upgrade() {
+                app.flush_config_save();
+            }
+        });
+    }
+
+    /// Saves now if a change is still waiting (also on exit).
+    pub(super) fn flush_config_save(&self) {
+        if !self.config_save_timer.running() && !self.st.borrow().config_unsaved {
+            return;
+        }
+        self.config_save_timer.stop();
+        self.st.borrow_mut().config_unsaved = false;
+        if let Err(e) = self.cfg.borrow_mut().save() {
+            log::error!("saving config: {e:#}");
+        }
     }
 
     pub(super) fn bind_hotkeys(&self) {
@@ -184,12 +231,16 @@ impl Caelestia {
             _ => {}
         }
         let value = normalize_number(path, value);
-        let result = {
-            let mut cfg = self.cfg.borrow_mut();
-            cfg.set(path, value).and_then(|_| cfg.save())
-        };
-        if let Err(e) = result {
-            log::error!("saving config: {e:#}");
+        if let Err(e) = self.cfg.borrow_mut().set(path, value) {
+            log::error!("setting {path}: {e:#}");
+            return;
+        }
+        self.st.borrow_mut().config_unsaved = true;
+        self.schedule_config_save();
+        // These act on the applied config right away; the rest (sliders
+        // included) refresh once per frame.
+        if !(path.starts_with("windows.performance.") || path == "windows.komorebi.enabled") {
+            return self.schedule_apply_config();
         }
         self.apply_config();
         if path.starts_with("windows.performance.") {

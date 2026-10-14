@@ -246,6 +246,8 @@ struct State {
     ws_anim_gen: u64,
     weather_query: Option<WeatherQuery>,
     settings_visible: bool,
+    /// shell.json has changes not written yet (see `schedule_config_save`).
+    config_unsaved: bool,
 }
 
 /// What a live-preview picker changes and how to undo it.
@@ -292,6 +294,11 @@ pub struct Caelestia {
     icon_refresh: Timer,
     startup_timer: Timer,
     settings_thumb_timer: Timer,
+    /// Coalesce bursts of setting changes (a slider scrolled with the wheel):
+    /// UI refresh once per frame, komorebi once the value rests, disk last.
+    config_apply_timer: Timer,
+    komorebi_theme_timer: Timer,
+    config_save_timer: Timer,
     /// One blur pane per translucent surface (dashboard, launcher, utilities,
     /// session, popout, settings, sidebar), created lazily.
     blur_panes: RefCell<Vec<Option<crate::platform::blur::BlurPane>>>,
@@ -401,6 +408,7 @@ impl Caelestia {
                 dots_gen: 0,
                 weather_query: None,
                 settings_visible: false,
+                config_unsaved: false,
             }),
             svc: RefCell::new(None),
             hotkeys: RefCell::new(None),
@@ -409,6 +417,9 @@ impl Caelestia {
             icon_refresh: Timer::default(),
             startup_timer: Timer::default(),
             settings_thumb_timer: Timer::default(),
+            config_apply_timer: Timer::default(),
+            komorebi_theme_timer: Timer::default(),
+            config_save_timer: Timer::default(),
             blur_panes: RefCell::new((0..7).map(|_| None).collect()),
             blur_timer: Timer::default(),
             popout_motion: RefCell::new(PopoutMotion::default()),
@@ -447,6 +458,7 @@ impl Caelestia {
     /// Releases everything visible to the rest of the system (reserved screen
     /// space, keep-awake). Background threads are left to process exit.
     pub fn shutdown(&self) {
+        self.flush_config_save();
         system::keep_awake(false);
         self.ghosts.borrow_mut().restore_all();
         self.ws_anim_stop();
