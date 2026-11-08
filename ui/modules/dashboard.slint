@@ -404,6 +404,28 @@ component OverviewTab inherits VerticalLayout {
 // Media tab
 // ======================================================================
 
+// Caelestia's bongo cat. The GIF's two frames sit side by side in one sprite
+// sheet (208 px cells, 4 px clear gutters); the frame flips every 150 ms while
+// something is playing and rests on frame 0 otherwise.
+component BongoCat inherits Rectangle {
+    property <int> frame: 0;
+    Image {
+        width: 100%;
+        height: 100%;
+        source: @image-url("../../assets/images/bongocat.png");
+        source-clip-x: root.frame * 208;
+        source-clip-y: 0;
+        source-clip-width: 208;
+        source-clip-height: 126;
+        image-fit: contain;
+    }
+    Timer {
+        interval: 150ms;
+        running: Shell.media.playing;
+        triggered => { root.frame = 1 - root.frame; }
+    }
+}
+
 component MediaTab inherits HorizontalLayout {
     spacing: Theme.spacing-large;
     Cover {
@@ -453,6 +475,15 @@ component MediaTab inherits HorizontalLayout {
         Rectangle { height: Theme.spacing-small; }
         Timeline { }
         MediaControls { size: 44px; }
+    }
+    // Bottom-right, like Caelestia's media card.
+    VerticalLayout {
+        alignment: end;
+        width: 130px;
+        if Shell.media.available: BongoCat {
+            width: 130px;
+            height: 80px;
+        }
     }
 }
 
