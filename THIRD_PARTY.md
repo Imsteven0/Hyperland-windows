@@ -16,6 +16,14 @@ Both fonts are distributed unmodified. Under the OFL, Rubik may be bundled
 and redistributed with this software but not sold on its own; its license
 text travels with it in `licenses/OFL-1.1.txt`.
 
+## Images (bundled in `assets/images`)
+
+- `bongocat.png`: the two frames of the "bongo cat" animation used by
+  [Caelestia](https://github.com/caelestia-dots/shell)'s media widget
+  (`bongocat.gif`), laid out as a sprite sheet. The artwork belongs to its
+  original creator(s); it is used here, as in Caelestia, as a small decorative
+  widget.
+
 ## Rust crates (compiled into `caelestia.exe`)
 
 Direct dependencies; their own dependencies are listed in `Cargo.lock`
